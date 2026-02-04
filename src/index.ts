@@ -34,6 +34,15 @@ export type {
   SpendingCapPermission,
   TimeWindowPermission,
   ActionWhitelistPermission,
+  VotingPermission,
+  HumanApprovalPermission,
+  VotingMode,
+  VotingConfig,
+  MultiSigConfig,
+  DAOVotingConfig,
+  ThresholdConfig,
+  ApprovalTrigger,
+  ApprovalChannel,
   AnyPermission,
   PermissionConfig,
   PermissionCheckResult,
@@ -49,8 +58,28 @@ export { Serializer } from './core/serializer.js';
 
 // Export permission templates
 export { SpendingCap } from './permissions/spending-cap.js';
+export type { SpendingCapOptions } from './permissions/spending-cap.js';
+
 export { TimeWindow } from './permissions/time-window.js';
+export type { TimeWindowOptions } from './permissions/time-window.js';
+
 export { ActionWhitelist } from './permissions/action-whitelist.js';
+export type { ActionWhitelistOptions } from './permissions/action-whitelist.js';
+
+export { Voting } from './permissions/voting.js';
+export type { VotingOptions, Vote, Proposal, VoteRequestCallback } from './permissions/voting.js';
+
+export { HumanApproval } from './permissions/human-approval.js';
+export type {
+  HumanApprovalOptions,
+  ApprovalRequest,
+  ApprovalRequestCallback,
+  CustomPredicate,
+} from './permissions/human-approval.js';
+
+// Export base permission types
+export type { PermissionTemplate, AsyncPermissionTemplate } from './permissions/types.js';
+export { isAsyncPermission } from './permissions/types.js';
 
 // Export wallet adapters
 export type { WalletAdapter } from './wallet/types.js';
