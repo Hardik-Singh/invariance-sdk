@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Verifier } from '../src/core/verifier.js';
-import type { PermissionConfig, SpendingCapPermission, VotingPermission, HumanApprovalPermission } from '@invariance/common';
+import type { PolicyConfig, SpendingCapPolicy, VotingPolicy, HumanApprovalPolicy } from '@invariance/common';
 
 describe('Verifier', () => {
   describe('spending cap check', () => {
     it('should allow actions without amount', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'spending-cap-eth',
             type: 'spending-cap',
@@ -26,8 +26,8 @@ describe('Verifier', () => {
     });
 
     it('should allow amounts under per-tx limit', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'spending-cap-eth',
             type: 'spending-cap',
@@ -50,8 +50,8 @@ describe('Verifier', () => {
     });
 
     it('should deny amounts exceeding per-tx limit', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'spending-cap-eth',
             type: 'spending-cap',
@@ -75,8 +75,8 @@ describe('Verifier', () => {
     });
 
     it('should track daily spending', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'spending-cap-eth',
             type: 'spending-cap',
@@ -115,8 +115,8 @@ describe('Verifier', () => {
     });
 
     it('should parse amount from various field names', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'spending-cap-eth',
             type: 'spending-cap',
@@ -153,8 +153,8 @@ describe('Verifier', () => {
     });
 
     it('should skip inactive permissions', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'spending-cap-eth',
             type: 'spending-cap',
@@ -179,8 +179,8 @@ describe('Verifier', () => {
 
   describe('voting permission check', () => {
     it('should deny actions requiring voting in sync check', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'voting-multisig',
             type: 'voting',
@@ -193,7 +193,7 @@ describe('Verifier', () => {
               expirationPeriod: 86400,
             },
             requiredForActions: ['transfer', 'withdraw'],
-          } as VotingPermission,
+          } as VotingPolicy,
         ],
         defaultAllow: true,
       };
@@ -206,8 +206,8 @@ describe('Verifier', () => {
     });
 
     it('should allow actions not requiring voting', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'voting-multisig',
             type: 'voting',
@@ -220,7 +220,7 @@ describe('Verifier', () => {
               expirationPeriod: 86400,
             },
             requiredForActions: ['transfer'],
-          } as VotingPermission,
+          } as VotingPolicy,
         ],
         defaultAllow: true,
       };
@@ -232,8 +232,8 @@ describe('Verifier', () => {
     });
 
     it('should require voting for all actions when requiredForActions is empty', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'voting-multisig',
             type: 'voting',
@@ -246,7 +246,7 @@ describe('Verifier', () => {
               expirationPeriod: 86400,
             },
             requiredForActions: [],
-          } as VotingPermission,
+          } as VotingPolicy,
         ],
         defaultAllow: true,
       };
@@ -258,8 +258,8 @@ describe('Verifier', () => {
     });
 
     it('should support wildcard patterns for voting', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'voting-multisig',
             type: 'voting',
@@ -272,7 +272,7 @@ describe('Verifier', () => {
               expirationPeriod: 86400,
             },
             requiredForActions: ['admin:*'],
-          } as VotingPermission,
+          } as VotingPolicy,
         ],
         defaultAllow: true,
       };
@@ -286,8 +286,8 @@ describe('Verifier', () => {
 
   describe('human approval permission check', () => {
     it('should deny actions matching always trigger', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'human-approval',
             type: 'human-approval',
@@ -295,7 +295,7 @@ describe('Verifier', () => {
             triggers: [{ type: 'always' }],
             timeoutSeconds: 300,
             channel: 'callback',
-          } as HumanApprovalPermission,
+          } as HumanApprovalPolicy,
         ],
         defaultAllow: true,
       };
@@ -308,8 +308,8 @@ describe('Verifier', () => {
     });
 
     it('should deny actions matching action-type trigger', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'human-approval',
             type: 'human-approval',
@@ -317,7 +317,7 @@ describe('Verifier', () => {
             triggers: [{ type: 'action-type', patterns: ['delete:*'] }],
             timeoutSeconds: 300,
             channel: 'callback',
-          } as HumanApprovalPermission,
+          } as HumanApprovalPolicy,
         ],
         defaultAllow: true,
       };
@@ -329,8 +329,8 @@ describe('Verifier', () => {
     });
 
     it('should deny actions matching amount-threshold trigger', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'human-approval',
             type: 'human-approval',
@@ -338,7 +338,7 @@ describe('Verifier', () => {
             triggers: [{ type: 'amount-threshold', threshold: 1000n }],
             timeoutSeconds: 300,
             channel: 'callback',
-          } as HumanApprovalPermission,
+          } as HumanApprovalPolicy,
         ],
         defaultAllow: true,
       };
@@ -355,8 +355,8 @@ describe('Verifier', () => {
     });
 
     it('should check token-specific amount triggers', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'human-approval',
             type: 'human-approval',
@@ -364,7 +364,7 @@ describe('Verifier', () => {
             triggers: [{ type: 'amount-threshold', threshold: 1000n, token: '0xUSDC' }],
             timeoutSeconds: 300,
             channel: 'callback',
-          } as HumanApprovalPermission,
+          } as HumanApprovalPolicy,
         ],
         defaultAllow: true,
       };
@@ -389,8 +389,8 @@ describe('Verifier', () => {
     });
 
     it('should trigger on custom predicates', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'human-approval',
             type: 'human-approval',
@@ -398,7 +398,7 @@ describe('Verifier', () => {
             triggers: [{ type: 'custom', predicateId: 'test' }],
             timeoutSeconds: 300,
             channel: 'callback',
-          } as HumanApprovalPermission,
+          } as HumanApprovalPolicy,
         ],
         defaultAllow: true,
       };
@@ -413,8 +413,8 @@ describe('Verifier', () => {
 
   describe('multiple permissions', () => {
     it('should check all permissions in order', () => {
-      const config: PermissionConfig = {
-        permissions: [
+      const config: PolicyConfig = {
+        policies: [
           {
             id: 'spending-cap',
             type: 'spending-cap',
@@ -435,7 +435,7 @@ describe('Verifier', () => {
               expirationPeriod: 86400,
             },
             requiredForActions: ['critical'],
-          } as VotingPermission,
+          } as VotingPolicy,
         ],
         defaultAllow: true,
       };

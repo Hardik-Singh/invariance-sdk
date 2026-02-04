@@ -1,10 +1,10 @@
 /**
- * Permission templates for Invariance SDK.
+ * Execution policies for Invariance SDK.
  *
  * @packageDocumentation
  */
 
-// Permission template classes
+// Policy classes
 export { SpendingCap } from './spending-cap.js';
 export type { SpendingCapOptions } from './spending-cap.js';
 
@@ -26,5 +26,11 @@ export type {
 } from './human-approval.js';
 
 // Base types
-export type { PermissionTemplate, AsyncPermissionTemplate } from './types.js';
-export { isAsyncPermission } from './types.js';
+export type {
+  ExecutionPolicy,
+  AsyncExecutionPolicy,
+  // Deprecated aliases
+  PermissionTemplate,
+  AsyncPermissionTemplate,
+} from './types.js';
+export { isAsyncPolicy, isAsyncPermission } from './types.js';

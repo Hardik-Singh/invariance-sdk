@@ -1,13 +1,16 @@
 import type {
   ActionInput,
-  PermissionCheckResult,
-  VotingPermission,
+  PolicyCheckResult,
+  VotingPolicy,
   VotingConfig,
   MultiSigConfig,
   DAOVotingConfig,
   ThresholdConfig,
+  ActorType,
+  ActionCategory,
 } from '@invariance/common';
-import type { AsyncPermissionTemplate } from './types.js';
+import { DEFAULT_POLICY_VALUES } from '@invariance/common';
+import type { AsyncExecutionPolicy } from './types.js';
 
 /**
  * Represents a vote from a participant.
@@ -49,17 +52,31 @@ export interface Proposal {
 export type VoteRequestCallback = (proposal: Proposal) => Promise<Vote[]>;
 
 /**
- * Options for creating a voting permission.
+ * Options for creating a voting policy.
  */
 export interface VotingOptions {
   /** Voting configuration (multi-sig, DAO, or threshold) */
   config: VotingConfig;
   /** Action types that require voting (empty = all actions) */
   requiredForActions?: string[];
+
+  // NEW OPTIONAL FIELDS (v2.0)
+  /** Policy version (default: "1.0.0") */
+  version?: string;
+  /** Max gas per action (default: 5_000_000n) */
+  maxGas?: bigint;
+  /** Max value per action (default: unlimited) */
+  maxValue?: bigint;
+  /** Allowed actor types (default: ['any']) */
+  allowedActors?: ActorType[];
+  /** Action category (default: 'CUSTOM') */
+  category?: ActionCategory;
+  /** Cooldown between same-category actions in seconds (default: 300) */
+  cooldownSeconds?: number;
 }
 
 /**
- * Voting permission - requires consensus before action execution.
+ * Voting policy - requires consensus before action execution.
  * Supports multi-sig, DAO-style, and threshold voting modes.
  *
  * @example
@@ -82,11 +99,20 @@ export interface VotingOptions {
  * });
  * ```
  */
-export class Voting implements AsyncPermissionTemplate {
+export class Voting implements AsyncExecutionPolicy {
   readonly type = 'voting';
   readonly requiresAsync = true;
 
-  private readonly options: VotingOptions;
+  private readonly config: VotingConfig;
+  private readonly requiredForActions: string[];
+  private readonly policyFields: {
+    version: string;
+    maxGas: bigint;
+    maxValue: bigint;
+    allowedActors: ActorType[];
+    category: ActionCategory;
+    cooldownSeconds: number;
+  };
   private active = true;
   private proposals: Map<string, Proposal> = new Map();
   private voteRequestCallback: VoteRequestCallback | null = null;
@@ -94,21 +120,27 @@ export class Voting implements AsyncPermissionTemplate {
 
   constructor(options: VotingOptions) {
     this.validateConfig(options.config);
-    this.options = {
-      ...options,
-      requiredForActions: options.requiredForActions ?? [],
+    this.config = options.config;
+    this.requiredForActions = options.requiredForActions ?? [];
+    this.policyFields = {
+      version: options.version ?? DEFAULT_POLICY_VALUES.version,
+      maxGas: options.maxGas ?? DEFAULT_POLICY_VALUES.maxGas,
+      maxValue: options.maxValue ?? DEFAULT_POLICY_VALUES.maxValue,
+      allowedActors: options.allowedActors ?? DEFAULT_POLICY_VALUES.allowedActors,
+      category: options.category ?? DEFAULT_POLICY_VALUES.category,
+      cooldownSeconds: options.cooldownSeconds ?? DEFAULT_POLICY_VALUES.cooldownSeconds,
     };
   }
 
   /**
-   * Check if this permission is active.
+   * Check if this policy is active.
    */
   isActive(): boolean {
     return this.active;
   }
 
   /**
-   * Enable or disable this permission.
+   * Enable or disable this policy.
    */
   setActive(active: boolean): void {
     this.active = active;
@@ -128,7 +160,7 @@ export class Voting implements AsyncPermissionTemplate {
    * Synchronous check - returns false if voting is required.
    * Use checkAsync for the full voting flow.
    */
-  check(action: ActionInput): PermissionCheckResult {
+  check(action: ActionInput): PolicyCheckResult {
     if (!this.active) {
       return { allowed: true };
     }
@@ -146,12 +178,12 @@ export class Voting implements AsyncPermissionTemplate {
   }
 
   /**
-   * Asynchronously check permission by initiating voting.
+   * Asynchronously check policy by initiating voting.
    *
    * @param action - The action to vote on
-   * @returns Permission check result after voting completes
+   * @returns Policy check result after voting completes
    */
-  async checkAsync(action: ActionInput): Promise<PermissionCheckResult> {
+  async checkAsync(action: ActionInput): Promise<PolicyCheckResult> {
     if (!this.active) {
       return { allowed: true };
     }
@@ -281,16 +313,29 @@ export class Voting implements AsyncPermissionTemplate {
   }
 
   /**
-   * Convert to permission config format.
+   * Convert to policy config format.
    */
-  toPermission(): VotingPermission {
+  toPolicy(): VotingPolicy {
     return {
-      id: `voting-${this.options.config.mode}`,
+      id: `voting-${this.config.mode}`,
       type: 'voting',
       active: this.active,
-      config: this.options.config,
-      requiredForActions: this.options.requiredForActions ?? [],
+      config: this.config,
+      requiredForActions: this.requiredForActions,
+      version: this.policyFields.version,
+      maxGas: this.policyFields.maxGas,
+      maxValue: this.policyFields.maxValue,
+      allowedActors: this.policyFields.allowedActors,
+      category: this.policyFields.category,
+      cooldownSeconds: this.policyFields.cooldownSeconds,
     };
+  }
+
+  /**
+   * @deprecated Use toPolicy() instead
+   */
+  toPermission(): VotingPolicy {
+    return this.toPolicy();
   }
 
   /**
@@ -353,14 +398,12 @@ export class Voting implements AsyncPermissionTemplate {
    * Check if an action type requires voting.
    */
   private actionRequiresVoting(action: ActionInput): boolean {
-    const requiredFor = this.options.requiredForActions ?? [];
-
     // Empty array = all actions require voting
-    if (requiredFor.length === 0) {
+    if (this.requiredForActions.length === 0) {
       return true;
     }
 
-    return requiredFor.some((pattern) => {
+    return this.requiredForActions.some((pattern) => {
       if (pattern.endsWith('*')) {
         return action.type.startsWith(pattern.slice(0, -1));
       }
@@ -389,13 +432,13 @@ export class Voting implements AsyncPermissionTemplate {
    * Get the expiration period based on config mode.
    */
   private getExpirationPeriod(): number {
-    switch (this.options.config.mode) {
+    switch (this.config.mode) {
       case 'multi-sig':
-        return this.options.config.expirationPeriod;
+        return this.config.expirationPeriod;
       case 'dao':
-        return this.options.config.votingPeriod + this.options.config.timelockDelay;
+        return this.config.votingPeriod + this.config.timelockDelay;
       case 'threshold':
-        return this.options.config.votingPeriod;
+        return this.config.votingPeriod;
     }
   }
 
@@ -403,14 +446,14 @@ export class Voting implements AsyncPermissionTemplate {
    * Check if a voter is valid for the current config.
    */
   private isValidVoter(voter: string): boolean {
-    switch (this.options.config.mode) {
+    switch (this.config.mode) {
       case 'multi-sig':
-        return this.options.config.signers.includes(voter);
+        return this.config.signers.includes(voter);
       case 'dao':
         // DAO mode: any token holder can vote
         return true;
       case 'threshold':
-        return this.options.config.voters.includes(voter);
+        return this.config.voters.includes(voter);
     }
   }
 
@@ -420,9 +463,9 @@ export class Voting implements AsyncPermissionTemplate {
   private checkApproval(proposal: Proposal): boolean {
     const approvals = proposal.votes.filter((v) => v.approved);
 
-    switch (this.options.config.mode) {
+    switch (this.config.mode) {
       case 'multi-sig':
-        return approvals.length >= this.options.config.requiredSignatures;
+        return approvals.length >= this.config.requiredSignatures;
 
       case 'dao': {
         // Calculate total vote power and approval power
@@ -440,13 +483,13 @@ export class Voting implements AsyncPermissionTemplate {
         if (totalVotePower === 0n) return false;
 
         const approvalBps = (approvalPower * 10000n) / totalVotePower;
-        return approvalBps >= BigInt(this.options.config.approvalThresholdBps);
+        return approvalBps >= BigInt(this.config.approvalThresholdBps);
       }
 
       case 'threshold': {
-        const totalVoters = this.options.config.voters.length;
+        const totalVoters = this.config.voters.length;
         const approvalBps = (approvals.length * 10000) / totalVoters;
-        return approvalBps >= this.options.config.thresholdBps;
+        return approvalBps >= this.config.thresholdBps;
       }
     }
   }
@@ -457,13 +500,13 @@ export class Voting implements AsyncPermissionTemplate {
   private checkRejection(proposal: Proposal): boolean {
     const rejections = proposal.votes.filter((v) => !v.approved);
 
-    switch (this.options.config.mode) {
+    switch (this.config.mode) {
       case 'multi-sig': {
         // Rejected if remaining possible approvals can't reach threshold
         const remainingVoters =
-          this.options.config.totalSigners - proposal.votes.length;
+          this.config.totalSigners - proposal.votes.length;
         const currentApprovals = proposal.votes.filter((v) => v.approved).length;
-        return currentApprovals + remainingVoters < this.options.config.requiredSignatures;
+        return currentApprovals + remainingVoters < this.config.requiredSignatures;
       }
 
       case 'dao':
@@ -471,9 +514,9 @@ export class Voting implements AsyncPermissionTemplate {
         return false;
 
       case 'threshold': {
-        const totalVoters = this.options.config.voters.length;
+        const totalVoters = this.config.voters.length;
         const rejectionBps = (rejections.length * 10000) / totalVoters;
-        return rejectionBps > 10000 - this.options.config.thresholdBps;
+        return rejectionBps > 10000 - this.config.thresholdBps;
       }
     }
   }

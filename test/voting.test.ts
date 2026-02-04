@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Voting } from '../src/permissions/voting.js';
-import type { Vote, Proposal } from '../src/permissions/voting.js';
+import { Voting } from '../src/policies/voting.js';
+import type { Vote, Proposal } from '../src/policies/voting.js';
 import type { ActionInput } from '@invariance/common';
 
 describe('Voting Permission', () => {

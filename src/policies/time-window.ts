@@ -1,8 +1,15 @@
-import type { ActionInput, PermissionCheckResult, TimeWindowPermission } from '@invariance/common';
-import type { PermissionTemplate } from './types.js';
+import type {
+  ActionInput,
+  PolicyCheckResult,
+  TimeWindowPolicy,
+  ActorType,
+  ActionCategory,
+} from '@invariance/common';
+import { DEFAULT_POLICY_VALUES } from '@invariance/common';
+import type { ExecutionPolicy } from './types.js';
 
 /**
- * Options for creating a time window permission.
+ * Options for creating a time window policy.
  */
 export interface TimeWindowOptions {
   /** Start hour in UTC (0-23) */
@@ -11,10 +18,24 @@ export interface TimeWindowOptions {
   endHour: number;
   /** Days of week allowed (0 = Sunday, 6 = Saturday). Defaults to all days. */
   allowedDays?: number[];
+
+  // NEW OPTIONAL FIELDS (v2.0)
+  /** Policy version (default: "1.0.0") */
+  version?: string;
+  /** Max gas per action (default: 5_000_000n) */
+  maxGas?: bigint;
+  /** Max value per action (default: unlimited) */
+  maxValue?: bigint;
+  /** Allowed actor types (default: ['any']) */
+  allowedActors?: ActorType[];
+  /** Action category (default: 'CUSTOM') */
+  category?: ActionCategory;
+  /** Cooldown between same-category actions in seconds (default: 300) */
+  cooldownSeconds?: number;
 }
 
 /**
- * Time window permission - restricts action execution to specific hours and days.
+ * Time window policy - restricts action execution to specific hours and days.
  *
  * @example
  * ```typescript
@@ -26,9 +47,11 @@ export interface TimeWindowOptions {
  * });
  * ```
  */
-export class TimeWindow implements PermissionTemplate {
+export class TimeWindow implements ExecutionPolicy {
   readonly type = 'time-window';
-  private readonly options: TimeWindowOptions;
+  private readonly options: Required<
+    Pick<TimeWindowOptions, 'startHour' | 'endHour' | 'allowedDays' | 'version' | 'maxGas' | 'maxValue' | 'allowedActors' | 'category' | 'cooldownSeconds'>
+  >;
   private active = true;
 
   constructor(options: TimeWindowOptions) {
@@ -49,20 +72,27 @@ export class TimeWindow implements PermissionTemplate {
     }
 
     this.options = {
-      ...options,
+      startHour: options.startHour,
+      endHour: options.endHour,
       allowedDays,
+      version: options.version ?? DEFAULT_POLICY_VALUES.version,
+      maxGas: options.maxGas ?? DEFAULT_POLICY_VALUES.maxGas,
+      maxValue: options.maxValue ?? DEFAULT_POLICY_VALUES.maxValue,
+      allowedActors: options.allowedActors ?? DEFAULT_POLICY_VALUES.allowedActors,
+      category: options.category ?? DEFAULT_POLICY_VALUES.category,
+      cooldownSeconds: options.cooldownSeconds ?? DEFAULT_POLICY_VALUES.cooldownSeconds,
     };
   }
 
   /**
-   * Check if this permission is active.
+   * Check if this policy is active.
    */
   isActive(): boolean {
     return this.active;
   }
 
   /**
-   * Enable or disable this permission.
+   * Enable or disable this policy.
    */
   setActive(active: boolean): void {
     this.active = active;
@@ -71,7 +101,7 @@ export class TimeWindow implements PermissionTemplate {
   /**
    * Check if an action is within the allowed time window.
    */
-  check(_action: ActionInput): PermissionCheckResult {
+  check(_action: ActionInput): PolicyCheckResult {
     if (!this.active) {
       return { allowed: true };
     }
@@ -81,8 +111,7 @@ export class TimeWindow implements PermissionTemplate {
     const day = now.getUTCDay();
 
     // Check day of week
-    const allowedDays = this.options.allowedDays ?? [];
-    if (!allowedDays.includes(day)) {
+    if (!this.options.allowedDays.includes(day)) {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       return {
         allowed: false,
@@ -114,16 +143,29 @@ export class TimeWindow implements PermissionTemplate {
   }
 
   /**
-   * Convert to permission config format.
+   * Convert to policy config format.
    */
-  toPermission(): TimeWindowPermission {
+  toPolicy(): TimeWindowPolicy {
     return {
       id: `time-window-${this.options.startHour}-${this.options.endHour}`,
       type: 'time-window',
       active: this.active,
       startHour: this.options.startHour,
       endHour: this.options.endHour,
-      allowedDays: this.options.allowedDays ?? [0, 1, 2, 3, 4, 5, 6],
+      allowedDays: this.options.allowedDays,
+      version: this.options.version,
+      maxGas: this.options.maxGas,
+      maxValue: this.options.maxValue,
+      allowedActors: this.options.allowedActors,
+      category: this.options.category,
+      cooldownSeconds: this.options.cooldownSeconds,
     };
+  }
+
+  /**
+   * @deprecated Use toPolicy() instead
+   */
+  toPermission(): TimeWindowPolicy {
+    return this.toPolicy();
   }
 }

@@ -44,8 +44,10 @@ export interface ExecutionLogContract {
  * Wrapper for the ExecutionLog contract.
  */
 export class ExecutionLog implements ExecutionLogContract {
-  private readonly contractAddress: string;
-  private readonly rpcUrl: string;
+  /** @internal */
+  readonly contractAddress: string;
+  /** @internal */
+  readonly rpcUrl: string;
 
   constructor(addresses: ContractAddresses, rpcUrl: string) {
     this.contractAddress = addresses.executionLog;

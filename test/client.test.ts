@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Invariance } from '../src/client.js';
-import { SpendingCap } from '../src/permissions/spending-cap.js';
-import { TimeWindow } from '../src/permissions/time-window.js';
-import { ActionWhitelist } from '../src/permissions/action-whitelist.js';
+import { SpendingCap } from '../src/policies/spending-cap.js';
+import { TimeWindow } from '../src/policies/time-window.js';
+import { ActionWhitelist } from '../src/policies/action-whitelist.js';
 
 describe('Invariance Client', () => {
   describe('initialization', () => {

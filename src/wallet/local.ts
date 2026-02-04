@@ -36,7 +36,8 @@ export interface LocalWalletConfig {
  * ```
  */
 export class LocalWallet implements WalletAdapter {
-  private readonly config: LocalWalletConfig;
+  /** @internal */
+  readonly config: LocalWalletConfig;
 
   constructor(config: LocalWalletConfig) {
     // Validate private key format

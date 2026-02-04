@@ -8,10 +8,10 @@ export class StateFailedError extends InvarianceError {
   readonly condition: string;
 
   /** The expected state value */
-  readonly expected?: string;
+  readonly expected: string | undefined;
 
   /** The actual state value */
-  readonly actual?: string;
+  readonly actual: string | undefined;
 
   constructor(
     message: string,
@@ -22,7 +22,7 @@ export class StateFailedError extends InvarianceError {
     super(message, 'STATE_FAILED');
     this.name = 'StateFailedError';
     this.condition = condition;
-    this.expected = expected;
-    this.actual = actual;
+    this.expected = expected ?? undefined;
+    this.actual = actual ?? undefined;
   }
 }

@@ -33,11 +33,12 @@ export interface PrivyWalletConfig {
  * ```
  */
 export class PrivyWallet implements WalletAdapter {
-  private readonly config: PrivyWalletConfig;
+  /** @internal */
+  readonly _config: PrivyWalletConfig;
   private address: string | null = null;
 
   constructor(config: PrivyWalletConfig) {
-    this.config = config;
+    this._config = config;
   }
 
   /**

@@ -1,11 +1,14 @@
 import type {
   ActionInput,
-  PermissionCheckResult,
-  HumanApprovalPermission,
+  PolicyCheckResult,
+  HumanApprovalPolicy,
   ApprovalTrigger,
   ApprovalChannel,
+  ActorType,
+  ActionCategory,
 } from '@invariance/common';
-import type { AsyncPermissionTemplate } from './types.js';
+import { DEFAULT_POLICY_VALUES } from '@invariance/common';
+import type { AsyncExecutionPolicy } from './types.js';
 
 /**
  * Represents a pending approval request.
@@ -39,7 +42,7 @@ export type ApprovalRequestCallback = (request: ApprovalRequest) => Promise<bool
 export type CustomPredicate = (action: ActionInput) => boolean;
 
 /**
- * Options for creating a human approval permission.
+ * Options for creating a human approval policy.
  */
 export interface HumanApprovalOptions {
   /** Conditions that trigger approval requirement */
@@ -50,10 +53,24 @@ export interface HumanApprovalOptions {
   channel?: ApprovalChannel;
   /** Webhook URL for 'webhook' channel */
   webhookUrl?: string;
+
+  // NEW OPTIONAL FIELDS (v2.0)
+  /** Policy version (default: "1.0.0") */
+  version?: string;
+  /** Max gas per action (default: 5_000_000n) */
+  maxGas?: bigint;
+  /** Max value per action (default: unlimited) */
+  maxValue?: bigint;
+  /** Allowed actor types (default: ['any']) */
+  allowedActors?: ActorType[];
+  /** Action category (default: 'CUSTOM') */
+  category?: ActionCategory;
+  /** Cooldown between same-category actions in seconds (default: 300) */
+  cooldownSeconds?: number;
 }
 
 /**
- * Human approval permission - requires human-in-the-loop confirmation.
+ * Human approval policy - requires human-in-the-loop confirmation.
  * Supports trigger-based activation and multiple approval channels.
  *
  * @example
@@ -71,11 +88,22 @@ export interface HumanApprovalOptions {
  * });
  * ```
  */
-export class HumanApproval implements AsyncPermissionTemplate {
+export class HumanApproval implements AsyncExecutionPolicy {
   readonly type = 'human-approval';
   readonly requiresAsync = true;
 
-  private readonly options: HumanApprovalOptions;
+  private readonly triggers: ApprovalTrigger[];
+  private readonly timeoutSeconds: number;
+  private readonly channel: ApprovalChannel;
+  private readonly webhookUrl: string | undefined;
+  private readonly policyFields: {
+    version: string;
+    maxGas: bigint;
+    maxValue: bigint;
+    allowedActors: ActorType[];
+    category: ActionCategory;
+    cooldownSeconds: number;
+  };
   private active = true;
   private requests: Map<string, ApprovalRequest> = new Map();
   private approvalCallback: ApprovalRequestCallback | null = null;
@@ -84,21 +112,29 @@ export class HumanApproval implements AsyncPermissionTemplate {
 
   constructor(options: HumanApprovalOptions) {
     this.validateOptions(options);
-    this.options = {
-      ...options,
-      channel: options.channel ?? 'callback',
+    this.triggers = options.triggers;
+    this.timeoutSeconds = options.timeoutSeconds;
+    this.channel = options.channel ?? 'callback';
+    this.webhookUrl = options.webhookUrl;
+    this.policyFields = {
+      version: options.version ?? DEFAULT_POLICY_VALUES.version,
+      maxGas: options.maxGas ?? DEFAULT_POLICY_VALUES.maxGas,
+      maxValue: options.maxValue ?? DEFAULT_POLICY_VALUES.maxValue,
+      allowedActors: options.allowedActors ?? DEFAULT_POLICY_VALUES.allowedActors,
+      category: options.category ?? DEFAULT_POLICY_VALUES.category,
+      cooldownSeconds: options.cooldownSeconds ?? DEFAULT_POLICY_VALUES.cooldownSeconds,
     };
   }
 
   /**
-   * Check if this permission is active.
+   * Check if this policy is active.
    */
   isActive(): boolean {
     return this.active;
   }
 
   /**
-   * Enable or disable this permission.
+   * Enable or disable this policy.
    */
   setActive(active: boolean): void {
     this.active = active;
@@ -128,7 +164,7 @@ export class HumanApproval implements AsyncPermissionTemplate {
    * Synchronous check - returns false if approval is required.
    * Use checkAsync for the full approval flow.
    */
-  check(action: ActionInput): PermissionCheckResult {
+  check(action: ActionInput): PolicyCheckResult {
     if (!this.active) {
       return { allowed: true };
     }
@@ -148,12 +184,12 @@ export class HumanApproval implements AsyncPermissionTemplate {
   }
 
   /**
-   * Asynchronously check permission by requesting human approval.
+   * Asynchronously check policy by requesting human approval.
    *
    * @param action - The action requiring approval
-   * @returns Permission check result after approval decision
+   * @returns Policy check result after approval decision
    */
-  async checkAsync(action: ActionInput): Promise<PermissionCheckResult> {
+  async checkAsync(action: ActionInput): Promise<PolicyCheckResult> {
     if (!this.active) {
       return { allowed: true };
     }
@@ -260,23 +296,36 @@ export class HumanApproval implements AsyncPermissionTemplate {
   }
 
   /**
-   * Convert to permission config format.
+   * Convert to policy config format.
    */
-  toPermission(): HumanApprovalPermission {
-    const permission: HumanApprovalPermission = {
-      id: `human-approval-${this.options.channel}`,
+  toPolicy(): HumanApprovalPolicy {
+    const policy: HumanApprovalPolicy = {
+      id: `human-approval-${this.channel}`,
       type: 'human-approval',
       active: this.active,
-      triggers: this.options.triggers,
-      timeoutSeconds: this.options.timeoutSeconds,
-      channel: this.options.channel ?? 'callback',
+      triggers: this.triggers,
+      timeoutSeconds: this.timeoutSeconds,
+      channel: this.channel,
+      version: this.policyFields.version,
+      maxGas: this.policyFields.maxGas,
+      maxValue: this.policyFields.maxValue,
+      allowedActors: this.policyFields.allowedActors,
+      category: this.policyFields.category,
+      cooldownSeconds: this.policyFields.cooldownSeconds,
     };
 
-    if (this.options.webhookUrl !== undefined) {
-      permission.webhookUrl = this.options.webhookUrl;
+    if (this.webhookUrl !== undefined) {
+      policy.webhookUrl = this.webhookUrl;
     }
 
-    return permission;
+    return policy;
+  }
+
+  /**
+   * @deprecated Use toPolicy() instead
+   */
+  toPermission(): HumanApprovalPolicy {
+    return this.toPolicy();
   }
 
   /**
@@ -300,7 +349,7 @@ export class HumanApproval implements AsyncPermissionTemplate {
    * Get triggers that match the action.
    */
   private getMatchingTriggers(action: ActionInput): ApprovalTrigger[] {
-    return this.options.triggers.filter((trigger) =>
+    return this.triggers.filter((trigger) =>
       this.triggerMatches(trigger, action),
     );
   }
@@ -387,7 +436,7 @@ export class HumanApproval implements AsyncPermissionTemplate {
       action,
       matchedTriggers,
       createdAt: now,
-      expiresAt: now + this.options.timeoutSeconds * 1000,
+      expiresAt: now + this.timeoutSeconds * 1000,
       status: 'pending',
     };
 
@@ -416,7 +465,7 @@ export class HumanApproval implements AsyncPermissionTemplate {
    * Request approval based on the configured channel.
    */
   private async requestApproval(request: ApprovalRequest): Promise<boolean> {
-    switch (this.options.channel) {
+    switch (this.channel) {
       case 'callback':
         return this.requestViaCallback(request);
 
@@ -451,12 +500,12 @@ export class HumanApproval implements AsyncPermissionTemplate {
    * Request approval via webhook.
    */
   private async requestViaWebhook(request: ApprovalRequest): Promise<boolean> {
-    if (!this.options.webhookUrl) {
+    if (!this.webhookUrl) {
       throw new Error('Webhook URL not configured');
     }
 
     try {
-      const response = await fetch(this.options.webhookUrl, {
+      const response = await fetch(this.webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -503,7 +552,7 @@ export class HumanApproval implements AsyncPermissionTemplate {
       }
 
       // Check if we've been waiting too long
-      if (Date.now() - startTime > this.options.timeoutSeconds * 1000) {
+      if (Date.now() - startTime > this.timeoutSeconds * 1000) {
         request.status = 'expired';
         request.rejectionReason = 'Request timed out';
         return false;

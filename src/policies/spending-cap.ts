@@ -1,8 +1,15 @@
-import type { ActionInput, PermissionCheckResult, SpendingCapPermission } from '@invariance/common';
-import type { PermissionTemplate } from './types.js';
+import type {
+  ActionInput,
+  PolicyCheckResult,
+  SpendingCapPolicy,
+  ActorType,
+  ActionCategory,
+} from '@invariance/common';
+import { DEFAULT_POLICY_VALUES } from '@invariance/common';
+import type { ExecutionPolicy } from './types.js';
 
 /**
- * Options for creating a spending cap permission.
+ * Options for creating a spending cap policy.
  */
 export interface SpendingCapOptions {
   /** Maximum amount per single transaction (in wei) */
@@ -11,10 +18,24 @@ export interface SpendingCapOptions {
   maxPerDay: bigint;
   /** Token address (use '0x0000000000000000000000000000000000000000' for native ETH) */
   token?: string;
+
+  // NEW OPTIONAL FIELDS (v2.0)
+  /** Policy version (default: "1.0.0") */
+  version?: string;
+  /** Max gas per action (default: 5_000_000n) */
+  maxGas?: bigint;
+  /** Max value per action (default: maxPerTx) */
+  maxValue?: bigint;
+  /** Allowed actor types (default: ['any']) */
+  allowedActors?: ActorType[];
+  /** Action category (default: 'TRANSFER') */
+  category?: ActionCategory;
+  /** Cooldown between same-category actions in seconds (default: 300) */
+  cooldownSeconds?: number;
 }
 
 /**
- * Spending cap permission - limits ETH/token spending per transaction and per day.
+ * Spending cap policy - limits ETH/token spending per transaction and per day.
  *
  * @example
  * ```typescript
@@ -24,27 +45,39 @@ export interface SpendingCapOptions {
  * });
  * ```
  */
-export class SpendingCap implements PermissionTemplate {
+export class SpendingCap implements ExecutionPolicy {
   readonly type = 'spending-cap';
-  private readonly options: SpendingCapOptions;
+  private readonly options: Required<
+    Pick<SpendingCapOptions, 'maxPerTx' | 'maxPerDay' | 'token' | 'version' | 'maxGas' | 'maxValue' | 'allowedActors' | 'category' | 'cooldownSeconds'>
+  >;
   private active = true;
   private dailySpent = 0n;
   private lastResetDate: string;
 
   constructor(options: SpendingCapOptions) {
-    this.options = options;
+    this.options = {
+      maxPerTx: options.maxPerTx,
+      maxPerDay: options.maxPerDay,
+      token: options.token ?? '0x0000000000000000000000000000000000000000',
+      version: options.version ?? DEFAULT_POLICY_VALUES.version,
+      maxGas: options.maxGas ?? DEFAULT_POLICY_VALUES.maxGas,
+      maxValue: options.maxValue ?? options.maxPerTx,
+      allowedActors: options.allowedActors ?? DEFAULT_POLICY_VALUES.allowedActors,
+      category: options.category ?? 'TRANSFER',
+      cooldownSeconds: options.cooldownSeconds ?? DEFAULT_POLICY_VALUES.cooldownSeconds,
+    };
     this.lastResetDate = new Date().toISOString().split('T')[0] ?? '';
   }
 
   /**
-   * Check if this permission is active.
+   * Check if this policy is active.
    */
   isActive(): boolean {
     return this.active;
   }
 
   /**
-   * Enable or disable this permission.
+   * Enable or disable this policy.
    */
   setActive(active: boolean): void {
     this.active = active;
@@ -53,7 +86,7 @@ export class SpendingCap implements PermissionTemplate {
   /**
    * Check if an action passes the spending cap.
    */
-  check(action: ActionInput): PermissionCheckResult {
+  check(action: ActionInput): PolicyCheckResult {
     if (!this.active) {
       return { allowed: true };
     }
@@ -105,17 +138,30 @@ export class SpendingCap implements PermissionTemplate {
   }
 
   /**
-   * Convert to permission config format.
+   * Convert to policy config format.
    */
-  toPermission(): SpendingCapPermission {
+  toPolicy(): SpendingCapPolicy {
     return {
-      id: `spending-cap-${this.options.token ?? 'eth'}`,
+      id: `spending-cap-${this.options.token === '0x0000000000000000000000000000000000000000' ? 'eth' : this.options.token}`,
       type: 'spending-cap',
       active: this.active,
       maxPerTx: this.options.maxPerTx,
       maxPerDay: this.options.maxPerDay,
-      token: this.options.token ?? '0x0000000000000000000000000000000000000000',
+      token: this.options.token,
+      version: this.options.version,
+      maxGas: this.options.maxGas,
+      maxValue: this.options.maxValue,
+      allowedActors: this.options.allowedActors,
+      category: this.options.category,
+      cooldownSeconds: this.options.cooldownSeconds,
     };
+  }
+
+  /**
+   * @deprecated Use toPolicy() instead
+   */
+  toPermission(): SpendingCapPolicy {
+    return this.toPolicy();
   }
 
   /**

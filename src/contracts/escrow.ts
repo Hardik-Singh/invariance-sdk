@@ -42,8 +42,10 @@ export interface EscrowVaultContract {
  * Wrapper for the EscrowVault contract.
  */
 export class EscrowVault implements EscrowVaultContract {
-  private readonly contractAddress: string;
-  private readonly rpcUrl: string;
+  /** @internal */
+  readonly contractAddress: string;
+  /** @internal */
+  readonly rpcUrl: string;
 
   constructor(addresses: ContractAddresses, rpcUrl: string) {
     this.contractAddress = addresses.escrowVault;

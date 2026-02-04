@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HumanApproval } from '../src/permissions/human-approval.js';
-import type { ApprovalRequest } from '../src/permissions/human-approval.js';
+import { HumanApproval } from '../src/policies/human-approval.js';
+import type { ApprovalRequest } from '../src/policies/human-approval.js';
 import type { ActionInput } from '@invariance/common';
 
 describe('HumanApproval Permission', () => {

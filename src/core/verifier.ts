@@ -1,15 +1,32 @@
 import type {
   ActionInput,
-  PermissionConfig,
-  PermissionCheckResult,
-  AnyPermission,
-  SpendingCapPermission,
-  VotingPermission,
-  HumanApprovalPermission,
+  PolicyConfig,
+  PolicyCheckResult,
+  AnyPolicy,
+  SpendingCapPolicy,
+  VotingPolicy,
+  HumanApprovalPolicy,
+  InvarianceTemplate,
+  TemplateId,
+  TemplateCheckResult,
+  VerificationContext,
 } from '@invariance/common';
+
+import { TemplateVerifier, type TemplateProofs } from './template-verifier.js';
+
+/**
+ * External state provider interface for spending tracking.
+ * This allows the verifier to remain stateless while still
+ * supporting stateful checks like daily spending limits.
+ */
+export interface SpendingStateProvider {
+  /** Get the current daily spending for a token */
+  getDailySpending(token: string): bigint;
+}
 
 /**
  * Tracks daily spending for a specific token.
+ * @deprecated Use SpendingStateProvider instead for stateless operation
  */
 interface DailySpendingEntry {
   /** Total amount spent today */
@@ -19,80 +36,186 @@ interface DailySpendingEntry {
 }
 
 /**
- * Verifies actions against permission rules.
+ * Verifies actions against policy rules and templates.
+ *
+ * The verifier supports two modes:
+ * 1. Stateless mode: Use setSpendingProvider() to externalize state
+ * 2. Stateful mode (deprecated): Uses internal dailySpending tracking
  */
 export class Verifier {
-  private readonly config: PermissionConfig | undefined;
-  /** Tracks daily spending per token address */
+  private readonly config: PolicyConfig | undefined;
+  /** @deprecated Use SpendingStateProvider instead */
   private dailySpending: Map<string, DailySpendingEntry> = new Map();
+  /** External spending state provider (stateless mode) */
+  private spendingProvider: SpendingStateProvider | null = null;
+  /** Template verifier for advanced verification */
+  private readonly templateVerifier: TemplateVerifier;
 
-  constructor(config?: PermissionConfig) {
+  constructor(config?: PolicyConfig, templates?: InvarianceTemplate[]) {
     this.config = config;
+    this.templateVerifier = new TemplateVerifier();
+
+    // Register any provided templates
+    templates?.forEach((t) => this.templateVerifier.registerTemplate(t));
   }
 
   /**
-   * Check if an action is permitted based on the configured permissions.
+   * Set an external spending state provider.
+   * This enables stateless operation where spending tracking
+   * is handled externally.
+   *
+   * @param provider - The spending state provider
+   */
+  setSpendingProvider(provider: SpendingStateProvider): void {
+    this.spendingProvider = provider;
+  }
+
+  // ============================================================================
+  // Template Methods
+  // ============================================================================
+
+  /**
+   * Register a template for verification.
+   *
+   * @param template - The template to register
+   */
+  registerTemplate(template: InvarianceTemplate): void {
+    this.templateVerifier.registerTemplate(template);
+  }
+
+  /**
+   * Unregister a template.
+   *
+   * @param templateId - The template ID to unregister
+   * @returns True if the template was found and removed
+   */
+  unregisterTemplate(templateId: TemplateId | string): boolean {
+    return this.templateVerifier.unregisterTemplate(templateId);
+  }
+
+  /**
+   * Check if a template exists.
+   *
+   * @param templateId - The template ID to check
+   */
+  hasTemplate(templateId: TemplateId | string): boolean {
+    return this.templateVerifier.hasTemplate(templateId);
+  }
+
+  /**
+   * Get a registered template.
+   *
+   * @param templateId - The template ID to get
+   */
+  getTemplate(templateId: TemplateId | string): InvarianceTemplate | undefined {
+    return this.templateVerifier.getTemplate(templateId);
+  }
+
+  /**
+   * Check an action against a template.
+   * This is the main entry point for template-based verification.
+   *
+   * @param templateId - The template to check against
+   * @param action - The action to verify
+   * @param context - The verification context
+   * @param proofs - Optional proof data for each rule category
+   * @returns Promise resolving to the template check result
+   */
+  async checkTemplatePolicy(
+    templateId: TemplateId | string,
+    action: ActionInput,
+    context: VerificationContext,
+    proofs?: TemplateProofs,
+  ): Promise<TemplateCheckResult> {
+    return this.templateVerifier.checkTemplate(templateId, action, context, proofs);
+  }
+
+  /**
+   * @deprecated Use checkTemplatePolicy instead
+   */
+  async checkTemplatePermission(
+    templateId: TemplateId | string,
+    action: ActionInput,
+    context: VerificationContext,
+    proofs?: TemplateProofs,
+  ): Promise<TemplateCheckResult> {
+    return this.checkTemplatePolicy(templateId, action, context, proofs);
+  }
+
+  // ============================================================================
+  // Policy Check Methods
+  // ============================================================================
+
+  /**
+   * Check if an action is permitted based on the configured policies.
    *
    * @param action - The action to check
-   * @returns The result of the permission check
+   * @returns The result of the policy check
    */
-  checkPermission(action: ActionInput): PermissionCheckResult {
-    // No permissions configured = allow by default
+  checkPolicy(action: ActionInput): PolicyCheckResult {
+    // No policies configured = allow by default
     if (!this.config) {
       return { allowed: true };
     }
 
-    // Check each permission
-    for (const permission of this.config.permissions) {
-      if (!permission.active) continue;
+    // Check each policy
+    for (const policy of this.config.policies) {
+      if (!policy.active) continue;
 
-      const result = this.checkSinglePermission(permission, action);
+      const result = this.checkSinglePolicy(policy, action);
       if (!result.allowed) {
         return result;
       }
     }
 
-    // All permissions passed
+    // All policies passed
     return { allowed: true };
   }
 
   /**
-   * Check a single permission rule.
+   * @deprecated Use checkPolicy instead
    */
-  private checkSinglePermission(
-    permission: AnyPermission,
+  checkPermission(action: ActionInput): PolicyCheckResult {
+    return this.checkPolicy(action);
+  }
+
+  /**
+   * Check a single policy rule.
+   */
+  private checkSinglePolicy(
+    policy: AnyPolicy,
     action: ActionInput,
-  ): PermissionCheckResult {
-    switch (permission.type) {
+  ): PolicyCheckResult {
+    switch (policy.type) {
       case 'spending-cap':
-        return this.checkSpendingCap(permission, action);
+        return this.checkSpendingCap(policy, action);
       case 'time-window':
-        return this.checkTimeWindow(permission);
+        return this.checkTimeWindow(policy);
       case 'action-whitelist':
-        return this.checkActionWhitelist(permission, action);
+        return this.checkActionWhitelist(policy, action);
       case 'voting':
-        return this.checkVoting(permission, action);
+        return this.checkVoting(policy, action);
       case 'human-approval':
-        return this.checkHumanApproval(permission, action);
+        return this.checkHumanApproval(policy, action);
       default: {
-        // TypeScript exhaustiveness check - ensures all permission types are handled
-        permission satisfies never;
+        // TypeScript exhaustiveness check - ensures all policy types are handled
+        policy satisfies never;
         return { allowed: true };
       }
     }
   }
 
   /**
-   * Check spending cap permission.
+   * Check spending cap policy.
    *
-   * @param permission - The spending cap permission to check against
+   * @param policy - The spending cap policy to check against
    * @param action - The action being verified
-   * @returns Permission check result
+   * @returns Policy check result
    */
   private checkSpendingCap(
-    permission: SpendingCapPermission,
+    policy: SpendingCapPolicy,
     action: ActionInput,
-  ): PermissionCheckResult {
+  ): PolicyCheckResult {
     const amount = this.extractAmount(action);
 
     // No amount in action params, allow by default
@@ -101,27 +224,22 @@ export class Verifier {
     }
 
     // Check per-transaction limit
-    if (amount > permission.maxPerTx) {
+    if (amount > policy.maxPerTx) {
       return {
         allowed: false,
-        deniedBy: permission,
-        reason: `Amount ${amount} exceeds per-transaction limit of ${permission.maxPerTx}`,
+        deniedBy: policy,
+        reason: `Amount ${amount} exceeds per-transaction limit of ${policy.maxPerTx}`,
       };
     }
 
-    // Check daily limit
-    const today = new Date().toISOString().split('T')[0] ?? '';
-    const dailyKey = `${permission.token}-${today}`;
-    const currentEntry = this.dailySpending.get(dailyKey);
+    // Check daily limit using external provider (stateless) or internal state (deprecated)
+    const currentAmount = this.getCurrentDailySpending(policy.token);
 
-    // Reset if it's a new day or first check for this token
-    const currentAmount = currentEntry?.date === today ? currentEntry.amount : 0n;
-
-    if (currentAmount + amount > permission.maxPerDay) {
+    if (currentAmount + amount > policy.maxPerDay) {
       return {
         allowed: false,
-        deniedBy: permission,
-        reason: `Daily spending would exceed limit: current ${currentAmount} + ${amount} > ${permission.maxPerDay}`,
+        deniedBy: policy,
+        reason: `Daily spending would exceed limit: current ${currentAmount} + ${amount} > ${policy.maxPerDay}`,
       };
     }
 
@@ -129,9 +247,26 @@ export class Verifier {
   }
 
   /**
+   * Get current daily spending for a token.
+   * Uses external provider if available, otherwise falls back to internal state.
+   */
+  private getCurrentDailySpending(token: string): bigint {
+    if (this.spendingProvider) {
+      return this.spendingProvider.getDailySpending(token);
+    }
+
+    // Fallback to internal state (deprecated)
+    const today = new Date().toISOString().split('T')[0] ?? '';
+    const dailyKey = `${token}-${today}`;
+    const currentEntry = this.dailySpending.get(dailyKey);
+    return currentEntry?.date === today ? currentEntry.amount : 0n;
+  }
+
+  /**
    * Record spending after a successful action execution.
    * Call this after the action has been executed to track daily totals.
    *
+   * @deprecated Use external SpendingStateProvider instead
    * @param token - The token address (or '0x0...' for native ETH)
    * @param amount - The amount spent
    */
@@ -150,15 +285,12 @@ export class Verifier {
   /**
    * Get the current daily spending for a token.
    *
+   * @deprecated Use external SpendingStateProvider instead
    * @param token - The token address
    * @returns The amount spent today for this token
    */
   getDailySpending(token: string): bigint {
-    const today = new Date().toISOString().split('T')[0] ?? '';
-    const dailyKey = `${token}-${today}`;
-    const entry = this.dailySpending.get(dailyKey);
-
-    return entry?.date === today ? entry.amount : 0n;
+    return this.getCurrentDailySpending(token);
   }
 
   /**
@@ -192,19 +324,19 @@ export class Verifier {
   }
 
   /**
-   * Check time window permission.
+   * Check time window policy.
    */
-  private checkTimeWindow(permission: {
+  private checkTimeWindow(policy: {
     startHour: number;
     endHour: number;
     allowedDays: number[];
-  }): PermissionCheckResult {
+  }): PolicyCheckResult {
     const now = new Date();
     const hour = now.getUTCHours();
     const day = now.getUTCDay();
 
     // Check day of week
-    if (!permission.allowedDays.includes(day)) {
+    if (!policy.allowedDays.includes(day)) {
       return {
         allowed: false,
         reason: `Action not allowed on this day of week (${day})`,
@@ -212,7 +344,7 @@ export class Verifier {
     }
 
     // Check hour
-    if (hour < permission.startHour || hour >= permission.endHour) {
+    if (hour < policy.startHour || hour >= policy.endHour) {
       return {
         allowed: false,
         reason: `Action not allowed at this hour (${hour} UTC)`,
@@ -223,13 +355,13 @@ export class Verifier {
   }
 
   /**
-   * Check action whitelist permission.
+   * Check action whitelist policy.
    */
   private checkActionWhitelist(
-    permission: { allowedActions: string[] },
+    policy: { allowedActions: string[] },
     action: ActionInput,
-  ): PermissionCheckResult {
-    const isAllowed = permission.allowedActions.some((pattern) => {
+  ): PolicyCheckResult {
+    const isAllowed = policy.allowedActions.some((pattern) => {
       // Support wildcard matching
       if (pattern.endsWith('*')) {
         return action.type.startsWith(pattern.slice(0, -1));
@@ -248,26 +380,26 @@ export class Verifier {
   }
 
   /**
-   * Check voting permission.
-   * Sync check always returns false for voting permissions - use async templates.
+   * Check voting policy.
+   * Sync check always returns false for voting policies - use async policies.
    *
-   * @param permission - The voting permission configuration
+   * @param policy - The voting policy configuration
    * @param action - The action to check
-   * @returns Permission check result (always denied for sync check)
+   * @returns Policy check result (always denied for sync check)
    */
   private checkVoting(
-    permission: VotingPermission,
+    policy: VotingPolicy,
     action: ActionInput,
-  ): PermissionCheckResult {
+  ): PolicyCheckResult {
     // Check if this action type requires voting
-    const requiredFor = permission.requiredForActions;
+    const requiredFor = policy.requiredForActions;
 
     // Empty array = all actions require voting
     if (requiredFor.length === 0) {
       return {
         allowed: false,
-        deniedBy: permission,
-        reason: 'Action requires voting approval. Use Voting permission template for async flow.',
+        deniedBy: policy,
+        reason: 'Action requires voting approval. Use Voting policy for async flow.',
       };
     }
 
@@ -281,8 +413,8 @@ export class Verifier {
     if (requiresVoting) {
       return {
         allowed: false,
-        deniedBy: permission,
-        reason: 'Action requires voting approval. Use Voting permission template for async flow.',
+        deniedBy: policy,
+        reason: 'Action requires voting approval. Use Voting policy for async flow.',
       };
     }
 
@@ -290,24 +422,24 @@ export class Verifier {
   }
 
   /**
-   * Check human approval permission.
-   * Sync check always returns false for approval permissions - use async templates.
+   * Check human approval policy.
+   * Sync check always returns false for approval policies - use async policies.
    *
-   * @param permission - The human approval permission configuration
+   * @param policy - The human approval policy configuration
    * @param action - The action to check
-   * @returns Permission check result (always denied for sync check if triggers match)
+   * @returns Policy check result (always denied for sync check if triggers match)
    */
   private checkHumanApproval(
-    permission: HumanApprovalPermission,
+    policy: HumanApprovalPolicy,
     action: ActionInput,
-  ): PermissionCheckResult {
+  ): PolicyCheckResult {
     // Check if any trigger matches
-    for (const trigger of permission.triggers) {
+    for (const trigger of policy.triggers) {
       if (this.triggerMatches(trigger, action)) {
         return {
           allowed: false,
-          deniedBy: permission,
-          reason: 'Action requires human approval. Use HumanApproval permission template for async flow.',
+          deniedBy: policy,
+          reason: 'Action requires human approval. Use HumanApproval policy for async flow.',
         };
       }
     }
@@ -319,7 +451,7 @@ export class Verifier {
    * Check if a trigger matches an action.
    */
   private triggerMatches(
-    trigger: HumanApprovalPermission['triggers'][number],
+    trigger: HumanApprovalPolicy['triggers'][number],
     action: ActionInput,
   ): boolean {
     switch (trigger.type) {
