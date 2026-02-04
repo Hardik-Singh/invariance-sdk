@@ -83,6 +83,55 @@ const whitelist = new ActionWhitelist({
 });
 ```
 
+#### Voting
+Requires consensus before action execution (multi-sig, DAO, or threshold voting).
+
+```typescript
+import { Voting } from '@invariance/sdk';
+
+const voting = new Voting({
+  config: {
+    mode: 'multi-sig',
+    requiredSignatures: 2,
+    totalSigners: 3,
+    signers: ['0x...', '0x...', '0x...'],
+    expirationPeriod: 86400,
+  },
+  requiredForActions: ['transfer', 'withdraw'],
+});
+
+// Register vote collection callback
+voting.onVoteRequest(async (proposal) => {
+  return await collectVotes(proposal);
+});
+
+// Use async check for voting flow
+const result = await voting.checkAsync(action);
+```
+
+#### HumanApproval
+Requires human-in-the-loop confirmation based on triggers.
+
+```typescript
+import { HumanApproval } from '@invariance/sdk';
+
+const approval = new HumanApproval({
+  triggers: [
+    { type: 'amount-threshold', threshold: 1000000000000000000n }, // > 1 ETH
+    { type: 'action-type', patterns: ['admin:*'] },
+  ],
+  timeoutSeconds: 300,
+});
+
+// Register approval callback
+approval.onApprovalRequest(async (request) => {
+  return await showApprovalDialog(request);
+});
+
+// Use async check for approval flow
+const result = await approval.checkAsync(action);
+```
+
 ### Wallet Adapters
 
 #### Privy (Production)
