@@ -5,7 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-02-05
+
+### Added
+
+#### Full Protocol SDK (12 modules, 77 methods)
+- `InvarianceClient` entry point with lazy-initialized module access (`inv.identity.*`, `inv.intent.*`, etc.)
+- `ContractFactory` for viem contract instance management
+- `EventEmitter` for typed real-time event subscriptions
+- `Telemetry` for anonymized usage metrics (opt-out supported)
+- `InvarianceError` typed error class with ErrorCode enum, explorerUrl, txHash
+- `verifyWebhookSignature()` utility for HMAC-SHA256 webhook verification
+
+#### Identity Module (10 methods)
+- `register`, `resolve`, `update`, `pause`, `resume`, `deactivate`, `attest`, `revokeAttestation`, `getAttestations`, `export`
+
+#### Wallet Module (6 methods)
+- `create`, `get`, `sign`, `signTypedData`, `getBalance`, `transfer`
+
+#### Intent Module (6 methods)
+- `request`, `approve`, `reject`, `prepare`, `complete`, `verify`
+
+#### Policy Module (9 methods)
+- `create`, `attach`, `detach`, `evaluate`, `revoke`, `compose`, `get`, `list`, `simulate`
+
+#### Escrow Module (11 methods)
+- `create`, `fund`, `release`, `refund`, `approve`, `dispute`, `resolve`, `checkTimeout`, `getState`, `getApprovals`, `export`
+
+#### Ledger Module (5 methods)
+- `log`, `logBatch`, `query`, `get`, `export`
+
+#### Verify Module (7 methods)
+- `transaction`, `identity`, `escrow`, `proof`, `batch`, `generateProofBundle`, `getExplorerUrl`
+
+#### Reputation Module (7 methods)
+- `getScore`, `getProfile`, `getReviews`, `submitReview`, `compare`, `getHistory`, `getBadges`
+
+#### Marketplace Module (8 methods)
+- `register`, `update`, `deactivate`, `search`, `get`, `hire`, `complete`, `getFeatured`
+
+#### Gas Module (2 methods)
+- `estimate`, `getBalance`
+
+#### Webhooks Module (6 methods)
+- `register`, `list`, `update`, `remove`, `test`, `getDeliveryLogs`
+
+### Changed
+- Restructured SDK from flat layout to `core/` + `modules/` architecture
+- Entry point changed from `Invariance` class to `InvarianceClient`
+- All modules import types from `@invariance/common`
+
+### Removed
+- Legacy code removed (old templates, policies, marketplace, client, wallet)
+
+---
+
+## [Unreleased] (v0.1.x)
 
 ### Added
 

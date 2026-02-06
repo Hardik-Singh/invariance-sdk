@@ -1,280 +1,268 @@
 /**
  * @invariance/sdk
  *
- * TypeScript SDK for Invariance Protocol - secure execution layer for autonomous agents.
+ * TypeScript SDK for Invariance Protocol - universal verification framework
+ * for agents, humans, and devices.
  *
  * @example
  * ```typescript
- * import { Invariance, SpendingCap } from '@invariance/sdk';
- *
- * const spendingCap = new SpendingCap({
- *   maxPerTx: 1_000_000_000_000_000_000n, // 1 ETH
- *   maxPerDay: 5_000_000_000_000_000_000n, // 5 ETH
- * });
+ * import { Invariance } from '@invariance/sdk';
  *
  * const inv = new Invariance({
- *   chainId: 8453, // Base mainnet
- *   rpcUrl: process.env.RPC_URL,
- *   policies: {
- *     policies: [spendingCap.toPolicy()],
- *     defaultAllow: true,
- *   },
+ *   chain: 'base',
+ *   rpcUrl: 'https://mainnet.base.org',
+ *   signer: wallet,
  * });
  *
- * // Simulate before executing
- * const sim = await inv.simulateExecute(action);
- * if (sim.allowed) {
- *   const result = await inv.execute(action);
- * }
+ * // Register an identity
+ * const agent = await inv.identity.register({
+ *   type: 'agent',
+ *   owner: '0xDev',
+ *   label: 'TraderBot',
+ * });
+ *
+ * // Execute a verified intent
+ * const result = await inv.intent.request({
+ *   actor: { type: 'agent', address: agent.address },
+ *   action: 'swap',
+ *   params: { from: 'USDC', to: 'ETH', amount: '100' },
+ *   approval: 'auto',
+ * });
+ *
+ * // Verify any transaction
+ * const verification = await inv.verify('0xtxhash...');
  * ```
  *
  * @packageDocumentation
  */
 
 // ============================================================================
-// Re-export common types (new policy terminology)
+// Main Client
 // ============================================================================
 
-export type {
-  AgentId,
-  ActionId,
-  TaskId,
-  IntentHash,
-  Action,
-  ActionInput,
-  ActionResult,
-  ActionResultWithProvenance,
-  // Policy types (new terminology)
-  Policy,
-  PolicyType,
-  SpendingCapPolicy,
-  TimeWindowPolicy,
-  ActionWhitelistPolicy,
-  VotingPolicy,
-  HumanApprovalPolicy,
-  VotingMode,
-  VotingConfig,
-  MultiSigConfig,
-  DAOVotingConfig,
-  ThresholdConfig,
-  ApprovalTrigger,
-  ApprovalChannel,
-  AnyPolicy,
-  PolicyConfig,
-  PolicyCheckResult,
-  ActorType,
-  ActionCategory,
-  // Deprecated aliases (backward compat)
-  Permission,
-  PermissionType,
-  SpendingCapPermission,
-  TimeWindowPermission,
-  ActionWhitelistPermission,
-  VotingPermission,
-  HumanApprovalPermission,
-  AnyPermission,
-  PermissionConfig,
-  PermissionCheckResult,
-} from '@invariance/common';
-
-// Re-export utility functions
-export {
-  createAgentId,
-  createActionId,
-  createTaskId,
-  createIntentHash,
-} from '@invariance/common';
-
-// Re-export defaults
-export {
-  DEFAULT_POLICY_VALUES,
-  MAX_UINT256,
-  applyPolicyDefaults,
-} from '@invariance/common';
+export { Invariance, SDK_VERSION } from './core/InvarianceClient.js';
+export type { VerifyProxy } from './core/InvarianceClient.js';
 
 // ============================================================================
-// Main client
+// Core Infrastructure
 // ============================================================================
 
-export { Invariance, SDK_VERSION } from './client.js';
-export type {
-  InvarianceConfig,
-  BeforeExecutionCallback,
-  SimulationResult,
-  AnomalyResult,
-  AnomalyDetector,
-  ExecutionContext,
-  ActionSummary,
-  DailyStats,
-  RuntimeFingerprint,
-  RiskSignal,
-} from './client.js';
-
-// ============================================================================
-// Core modules
-// ============================================================================
-
-export { Verifier } from './core/verifier.js';
-export type { SpendingStateProvider } from './core/verifier.js';
-
-export { Serializer } from './core/serializer.js';
-
-export { CooldownTracker } from './core/cooldown-tracker.js';
-
-export {
-  generateIntentHash,
-  generatePolicyHash,
-  generateRuntimeFingerprint,
-} from './core/intent.js';
-
-// ============================================================================
-// Execution policies (new terminology)
-// ============================================================================
-
-export { SpendingCap } from './policies/spending-cap.js';
-export type { SpendingCapOptions } from './policies/spending-cap.js';
-
-export { TimeWindow } from './policies/time-window.js';
-export type { TimeWindowOptions } from './policies/time-window.js';
-
-export { ActionWhitelist } from './policies/action-whitelist.js';
-export type { ActionWhitelistOptions } from './policies/action-whitelist.js';
-
-export { Voting } from './policies/voting.js';
-export type { VotingOptions, Vote, Proposal, VoteRequestCallback } from './policies/voting.js';
-
-export { HumanApproval } from './policies/human-approval.js';
-export type {
-  HumanApprovalOptions,
-  ApprovalRequest,
-  ApprovalRequestCallback,
-  CustomPredicate,
-} from './policies/human-approval.js';
-
-// Base policy types
-export type {
-  ExecutionPolicy,
-  AsyncExecutionPolicy,
-  // Deprecated aliases
-  PermissionTemplate,
-  AsyncPermissionTemplate,
-} from './policies/types.js';
-export { isAsyncPolicy, isAsyncPermission } from './policies/types.js';
-
-// ============================================================================
-// Wallet adapters
-// ============================================================================
-
-export type { WalletAdapter } from './wallet/types.js';
-export { PrivyWallet } from './wallet/privy.js';
-export { LocalWallet } from './wallet/local.js';
-
-// ============================================================================
-// Contract wrappers
-// ============================================================================
-
-export { InvarianceCore } from './contracts/core.js';
-export type { InvarianceCoreContract } from './contracts/core.js';
-
-export { PolicyGate, PermissionGate } from './contracts/policy-gate.js';
-export type {
-  PolicyGateContract,
-  PermissionGateContract,
-  PolicyCheckResult as ContractPolicyCheckResult,
-} from './contracts/policy-gate.js';
+export { ContractFactory } from './core/ContractFactory.js';
+export { InvarianceEventEmitter } from './core/EventEmitter.js';
+export type { InvarianceEvents } from './core/EventEmitter.js';
+export { Telemetry } from './core/Telemetry.js';
 
 // ============================================================================
 // Errors
 // ============================================================================
 
-export { InvarianceError } from './errors/base.js';
-export { PolicyDeniedError, PermissionDeniedError } from './errors/policy-denied.js';
-export { StateFailedError } from './errors/state-failed.js';
+export { InvarianceError } from './errors/InvarianceError.js';
+export { ErrorCode } from '@invariance/common';
 
 // ============================================================================
-// Template System Exports
+// Module Managers
 // ============================================================================
 
-// Re-export template types from common
+export { IdentityManager } from './modules/identity/IdentityManager.js';
+export { WalletManager } from './modules/wallet/WalletManager.js';
+export { IntentProtocol } from './modules/intent/IntentProtocol.js';
+export { PolicyEngine } from './modules/policy/PolicyEngine.js';
+export { EscrowManager } from './modules/escrow/EscrowManager.js';
+export { EventLedger } from './modules/ledger/EventLedger.js';
+export { Verifier } from './modules/verify/Verifier.js';
+export { ReputationEngine } from './modules/reputation/ReputationEngine.js';
+export { MarketplaceKit } from './modules/marketplace/MarketplaceKit.js';
+export { GasManager } from './modules/gas/GasManager.js';
+export { WebhookManager } from './modules/webhooks/WebhookManager.js';
+
+// ============================================================================
+// Module Types — Identity
+// ============================================================================
+
 export type {
-  // Core template types
-  InvarianceTemplate,
-  TemplateId,
-  TemplateOptions,
-  TemplateCheckResult,
-  VerificationRules,
-  ExecutionConfig,
-  MonitoringConfig,
-  VerificationContext,
-  FunctionDefinition,
-  RuleCheckResults,
-  RuleResult,
-  RuleDetail,
-  // Authorization types
-  AuthorizationRule,
-  AuthorizationType,
-  SignatureAuthorization,
-  MultiSigAuthorization,
-  WhitelistAuthorization,
-  TokenGatedAuthorization,
-  NFTGatedAuthorization,
-  // Condition types
-  StateCondition,
-  ConditionType,
-  BalanceCheckCondition,
-  AllowanceCheckCondition,
-  // Timing types
-  TimingRule,
-  TimingType,
-  TimeWindowRule,
-  CooldownRule,
-  // Rate limit types
-  RateLimitRule,
-  RateLimitType,
-  PerAddressRateLimit,
-  ValueRateLimit,
-  // Execution types
-  ExecutionMode,
-  RollbackRule,
-  // Staking types
-  StakingRule,
-  StakingType,
+  RegisterIdentityOptions,
+  Identity,
+  Attestation,
+  PauseResult,
+  ActorReference,
+} from './modules/identity/types.js';
+export type {
+  IdentityListFilters,
+  AttestationInput,
+  UpdateIdentityOptions,
+} from './modules/identity/types.js';
+
+// ============================================================================
+// Module Types — Wallet
+// ============================================================================
+
+export type {
+  WalletInfo,
+  BalanceInfo,
+  FundOptions,
+  CreateWalletOptions,
+} from './modules/wallet/types.js';
+export type { WalletProvider, ConnectOptions } from './modules/wallet/types.js';
+
+// ============================================================================
+// Module Types — Intent
+// ============================================================================
+
+export type {
+  IntentRequestOptions,
+  IntentResult,
+  PreparedIntent,
+  IntentStatus,
+  IntentLifecycle,
+  ApprovalResult,
+  ApprovalMethod,
+  ProofBundle,
+  GasEstimate,
+} from './modules/intent/types.js';
+export type { IntentHistoryFilters } from './modules/intent/types.js';
+
+// ============================================================================
+// Module Types — Policy
+// ============================================================================
+
+export type {
+  CreatePolicyOptions,
+  PolicyRule,
+  PolicyRuleType,
+  SpecPolicy,
+  PolicyStatus,
+  EvaluationResult,
+} from './modules/policy/types.js';
+export type {
+  EvaluateOptions,
+  PolicyListFilters,
+  PolicyViolationCallback,
+} from './modules/policy/types.js';
+
+// ============================================================================
+// Module Types — Escrow
+// ============================================================================
+
+export type {
+  CreateEscrowOptions,
+  EscrowContract,
+  EscrowState,
+  EscrowStatus,
+  EscrowConditions,
+  ApprovalStatus,
+  ResolveOptions,
+} from './modules/escrow/types.js';
+export type {
+  EscrowListFilters,
+  EscrowStateChangeCallback,
+  ReleaseOptions,
+} from './modules/escrow/types.js';
+
+// ============================================================================
+// Module Types — Ledger
+// ============================================================================
+
+export type {
+  LedgerEventInput,
+  LedgerEntry,
+  LedgerQueryFilters,
+} from './modules/ledger/types.js';
+export type { LedgerStreamCallback } from './modules/ledger/types.js';
+
+// ============================================================================
+// Module Types — Verify
+// ============================================================================
+
+export type {
+  VerificationResult,
+  IdentityVerification,
+  EscrowVerification,
+} from './modules/verify/types.js';
+export type { ProofData, VerifyActionOptions } from './modules/verify/types.js';
+
+// ============================================================================
+// Module Types — Reputation
+// ============================================================================
+
+export type {
+  ReputationScore,
+  ReputationProfile,
+  OnChainMetrics,
+  SubmitReviewOptions,
+  Review,
+  ReviewSummary,
+  Badge,
+  ComparisonResult,
+  ScoreHistory,
+  ScoreHistoryEntry,
+} from './modules/reputation/types.js';
+export type {
+  ReviewQueryOptions,
+  ReviewList,
+  ScoreHistoryOptions,
+} from './modules/reputation/types.js';
+
+// ============================================================================
+// Module Types — Marketplace
+// ============================================================================
+
+export type {
+  RegisterListingOptions,
+  Listing,
+  ListingCategory,
+  PricingModel,
+  SearchQuery,
+  SearchResults,
+  HireOptions,
+  HireResult,
+  CompletionResult,
+} from './modules/marketplace/types.js';
+export type {
+  UpdateListingOptions,
+  FeaturedOptions,
+  CompleteHireOptions,
+} from './modules/marketplace/types.js';
+
+// ============================================================================
+// Module Types — Gas
+// ============================================================================
+
+export type { GasBalance } from './modules/gas/types.js';
+export type { EstimateGasOptions } from './modules/gas/types.js';
+
+// ============================================================================
+// Module Types — Webhooks
+// ============================================================================
+
+export type {
+  RegisterWebhookOptions,
+  Webhook,
+  WebhookEvent,
+  WebhookPayload,
+  DeliveryLog,
+} from './modules/webhooks/types.js';
+export type {
+  UpdateWebhookOptions,
+  WebhookLogOptions,
+} from './modules/webhooks/types.js';
+
+// ============================================================================
+// Common Types (re-exported for convenience)
+// ============================================================================
+
+export type {
+  InvarianceConfig,
+  TxReceipt,
+  Unsubscribe,
+  ExportData,
+  ActorType,
+  ChainConfig,
+  ContractAddresses,
 } from '@invariance/common';
-
-// Export template verifier
-export { TemplateVerifier } from './core/template-verifier.js';
-export type { TemplateProofs } from './core/template-verifier.js';
-
-// Export template infrastructure
-export { BaseTemplate } from './templates/base.js';
-export type { TemplateConstructor } from './templates/base.js';
-
-export { TemplateRegistry, globalRegistry } from './templates/registry.js';
-
-export { TemplateBuilder } from './templates/builder.js';
-
-export { TemplateValidator, templateValidator } from './templates/validator.js';
-export type { ValidationError, ValidationResult } from './templates/validator.js';
-
-// Export prebuilt templates
-export {
-  createSimpleTransferTemplate,
-  createMultisigTransferTemplate,
-  createTradingAgentTemplate,
-  createDAOGovernedTemplate,
-  createNFTGatedTemplate,
-} from './templates/prebuilt/index.js';
-
-export type {
-  SimpleTransferOptions,
-  MultisigTransferOptions,
-  TradingAgentOptions,
-  DAOGovernedOptions,
-  NFTGatedOptions,
-} from './templates/prebuilt/index.js';
+export type { EIP1193Provider, InvarianceSigner } from '@invariance/common';
 
 // ============================================================================
-// Permission Marketplace
+// Utility Functions
 // ============================================================================
 
-export * from './marketplace/index.js';
+export { verifyWebhookSignature } from './utils/webhook.js';

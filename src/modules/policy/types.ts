@@ -1,0 +1,40 @@
+/**
+ * Re-exports and module-specific types for the Policy Engine module.
+ */
+export type {
+  CreatePolicyOptions,
+  PolicyRule,
+  PolicyRuleType,
+  SpecPolicy,
+  PolicyStatus,
+  EvaluationResult,
+} from '@invariance/common';
+
+export type { TxReceipt, Unsubscribe } from '@invariance/common';
+export type { ActorReference } from '@invariance/common';
+
+/** Options for evaluating an action against a policy */
+export interface EvaluateOptions {
+  policyId: string;
+  actor: import('@invariance/common').ActorReference;
+  action: string;
+  amount?: string;
+  params?: Record<string, unknown>;
+}
+
+/** Filters for listing policies */
+export interface PolicyListFilters {
+  identityId?: string;
+  actor?: string;
+  state?: 'active' | 'revoked' | 'expired';
+  limit?: number;
+  offset?: number;
+}
+
+/** Callback for policy violation events */
+export type PolicyViolationCallback = (violation: {
+  policyId: string;
+  action: string;
+  detail: string;
+  timestamp: number;
+}) => void;
