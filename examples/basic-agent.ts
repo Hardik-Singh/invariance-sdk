@@ -1,4 +1,24 @@
 /**
+ * @deprecated This example uses the legacy SDK API (v0.x).
+ *
+ * See the updated examples using the v2.0 API:
+ *
+ * - **Verified Agent Treasury** (CLI) — `sdk/examples/verified-treasury/`
+ *   Core SDK showcase: policies, intents, audit trail, verification.
+ *
+ * - **AI Governance DAO** (Next.js) — `sdk/examples/governance-dao/`
+ *   Democratic governance, voting, proposals, treasury escrow.
+ *
+ * - **AI Agent Marketplace** (Next.js) — `sdk/examples/agent-marketplace/`
+ *   Browse, hire, review agents with USDC escrow and reputation.
+ *
+ * Run any example:
+ *   pnpm --filter @invariance/example-verified-treasury start
+ *   pnpm --filter @invariance/example-governance-dao dev
+ *   pnpm --filter @invariance/example-agent-marketplace dev
+ */
+
+/**
  * Basic example of using Invariance SDK with an AI agent.
  *
  * This example shows how to:

@@ -347,6 +347,28 @@ If you're upgrading from an earlier version, note these terminology changes:
 
 The old names are still supported as deprecated aliases for backward compatibility.
 
+## Examples
+
+Three complete example applications demonstrate the SDK's capabilities:
+
+| Example | Type | Directory | Run |
+|---------|------|-----------|-----|
+| **Verified Agent Treasury** | Node.js CLI | `examples/verified-treasury/` | `pnpm --filter @invariance/example-verified-treasury start` |
+| **AI Governance DAO** | Next.js web app | `examples/governance-dao/` | `pnpm --filter @invariance/example-governance-dao dev` |
+| **AI Agent Marketplace** | Next.js web app | `examples/agent-marketplace/` | `pnpm --filter @invariance/example-agent-marketplace dev` |
+
+### Verified Agent Treasury
+
+CLI walkthrough of the core Invariance value prop: policy-gated spending controls, verified intent execution, policy violation handling, and immutable audit trails. Uses `PolicyEngine`, `IntentProtocol`, `EventLedger`, `IdentityManager`, `Verifier`.
+
+### AI Governance DAO
+
+Web app for democratic governance of AI agents. Create proposals, vote with multi-sig approval, execute approved actions, and view the full audit trail. Uses `PolicyEngine`, `IntentProtocol`, `EscrowManager`, `EventLedger`, `Verifier`.
+
+### AI Agent Marketplace
+
+Web app for browsing, hiring, and reviewing AI agents. USDC escrow payments, 1-5 star reviews, reputation scores, and verification proofs. Uses `MarketplaceKit`, `EscrowManager`, `ReputationEngine`, `IdentityManager`, `Verifier`.
+
 ## License
 
 MIT
