@@ -34,3 +34,34 @@ export interface UpdateIdentityOptions {
   metadata?: Record<string, string>;
   capabilities?: string[];
 }
+
+/**
+ * Raw on-chain identity tuple returned by contract.read.get().
+ * Matches IInvarianceIdentity.Identity struct layout.
+ */
+export interface OnChainIdentity {
+  identityId: `0x${string}`;
+  actorType: number;
+  addr: `0x${string}`;
+  owner: `0x${string}`;
+  label: string;
+  capabilities: readonly string[];
+  status: number;
+  createdAt: bigint;
+  updatedAt: bigint;
+}
+
+/**
+ * Raw on-chain attestation tuple returned by contract.read.getAttestations().
+ * Matches InvarianceIdentity.Attestation struct layout.
+ */
+export interface OnChainAttestation {
+  attestationId: `0x${string}`;
+  identityId: `0x${string}`;
+  attester: `0x${string}`;
+  claim: string;
+  evidenceHash: `0x${string}`;
+  expiresAt: bigint;
+  createdAt: bigint;
+  revoked: boolean;
+}

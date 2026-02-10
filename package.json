@@ -2,16 +2,26 @@
   "name": "@invariance/sdk",
   "version": "0.0.1",
   "description": "TypeScript SDK for Invariance Protocol - secure execution layer for autonomous agents",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm build && pnpm typecheck"
   },
   "keywords": [
     "invariance",
@@ -34,6 +44,7 @@
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
     "prettier": "^3.0.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   },
@@ -42,6 +53,16 @@
   },
   "files": [
     "dist",
-    "README.md"
-  ]
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hardik-Singh/invariance.git",
+    "directory": "sdk"
+  },
+  "homepage": "https://invariance.dev"
 }
