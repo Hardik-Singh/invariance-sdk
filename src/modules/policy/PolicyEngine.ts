@@ -29,9 +29,14 @@ import type {
   OnChainPolicy,
   OnChainPolicyRule,
 } from './types.js';
+import { keccak256, toHex } from 'viem';
 
 /** Zero bytes32 constant */
 const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000' as const;
+
+/** Event signature hashes for log parsing */
+const POLICY_CREATED_EVENT = keccak256(toHex('PolicyCreated(bytes32,string,address,uint256)'));
+const POLICY_COMPOSED_EVENT = keccak256(toHex('PolicyComposed(bytes32,bytes32,bytes32)'));
 
 /**
  * Composable, verifiable condition sets for action control.
@@ -155,8 +160,7 @@ export class PolicyEngine {
       // Parse PolicyCreated event to get policyId
       let policyId: `0x${string}` = ZERO_BYTES32;
       for (const log of receipt.logs) {
-        if (log.topics[0] === '0x...') {
-          // TODO: Use proper event signature hash
+        if (log.topics[0] === POLICY_CREATED_EVENT) {
           policyId = log.topics[1] as `0x${string}`;
           break;
         }
@@ -215,11 +219,11 @@ export class PolicyEngine {
 
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      // Emit event AFTER successful transaction (TODO: add to InvarianceEvents type)
-      // this.events.emit('policy.attached', {
-      //   policyId,
-      //   identityId,
-      // });
+      // Emit event AFTER successful transaction
+      this.events.emit('policy.attached', {
+        policyId,
+        identityId,
+      });
 
       return {
         txHash: receipt.txHash,
@@ -255,11 +259,11 @@ export class PolicyEngine {
 
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      // Emit event AFTER successful transaction (TODO: add to InvarianceEvents type)
-      // this.events.emit('policy.detached', {
-      //   policyId,
-      //   identityId,
-      // });
+      // Emit event AFTER successful transaction
+      this.events.emit('policy.detached', {
+        policyId,
+        identityId,
+      });
 
       return {
         txHash: receipt.txHash,
@@ -484,10 +488,10 @@ export class PolicyEngine {
 
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      // Emit event AFTER successful transaction (TODO: add to InvarianceEvents type)
-      // this.events.emit('policy.revoked', {
-      //   policyId,
-      // });
+      // Emit event AFTER successful transaction
+      this.events.emit('policy.revoked', {
+        policyId,
+      });
 
       return {
         txHash: receipt.txHash,
@@ -538,8 +542,7 @@ export class PolicyEngine {
       // Parse PolicyComposed event to get newPolicyId
       let newPolicyId: `0x${string}` = ZERO_BYTES32;
       for (const log of receipt.logs) {
-        if (log.topics[0] === '0x...') {
-          // TODO: Use proper event signature hash
+        if (log.topics[0] === POLICY_COMPOSED_EVENT) {
           newPolicyId = log.topics[1] as `0x${string}`;
           break;
         }
@@ -561,11 +564,11 @@ export class PolicyEngine {
 
       const policy = this.mapOnChainPolicy(raw, Array.from(rawRules), receipt.txHash);
 
-      // Emit event AFTER successful transaction (TODO: add to InvarianceEvents type)
-      // this.events.emit('policy.composed', {
-      //   policyId: policy.policyId,
-      //   sourcePolicies: policyIds,
-      // });
+      // Emit event AFTER successful transaction
+      this.events.emit('policy.composed', {
+        policyId: policy.policyId,
+        name: policy.name,
+      });
 
       return policy;
     } catch (err) {

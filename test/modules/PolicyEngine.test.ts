@@ -263,30 +263,29 @@ describe('PolicyEngine', () => {
       expect(contracts.getContract('policy').write.attach).toHaveBeenCalled();
     });
 
-    // TODO: Re-enable when policy.attached event is added to InvarianceEvents type
-    // it('emits policy.attached event after successful transaction', async () => {
-    //   const mockContract = createMockContract({
-    //     write: {
-    //       attach: vi.fn().mockResolvedValue('0xtxhash'),
-    //     },
-    //   });
-    //   const mockPublicClient = createMockPublicClient();
-    //   contracts = createMockContractFactory({
-    //     contract: mockContract,
-    //     publicClient: mockPublicClient,
-    //   });
-    //   policy = new PolicyEngine(contracts, events, telemetry);
+    it('emits policy.attached event after successful transaction', async () => {
+      const mockContract = createMockContract({
+        write: {
+          attach: vi.fn().mockResolvedValue('0xtxhash'),
+        },
+      });
+      const mockPublicClient = createMockPublicClient();
+      contracts = createMockContractFactory({
+        contract: mockContract,
+        publicClient: mockPublicClient,
+      });
+      policy = new PolicyEngine(contracts, events, telemetry);
 
-    //   const listener = vi.fn();
-    //   events.on('policy.attached', listener);
+      const listener = vi.fn();
+      events.on('policy.attached', listener);
 
-    //   await policy.attach('policy_1', 'identity_1');
+      await policy.attach('policy_1', 'identity_1');
 
-    //   expect(listener).toHaveBeenCalledWith({
-    //     policyId: 'policy_1',
-    //     identityId: 'identity_1',
-    //   });
-    // });
+      expect(listener).toHaveBeenCalledWith({
+        policyId: 'policy_1',
+        identityId: 'identity_1',
+      });
+    });
 
     it('throws InvarianceError on contract error', async () => {
       const mockContract = createMockContract({
@@ -335,6 +334,30 @@ describe('PolicyEngine', () => {
       expect(result.txHash).toBe('0xabc123');
       expect(result.status).toBe('success');
       expect(contracts.getContract('policy').write.detach).toHaveBeenCalled();
+    });
+
+    it('emits policy.detached event after successful transaction', async () => {
+      const mockContract = createMockContract({
+        write: {
+          detach: vi.fn().mockResolvedValue('0xtxhash'),
+        },
+      });
+      const mockPublicClient = createMockPublicClient();
+      contracts = createMockContractFactory({
+        contract: mockContract,
+        publicClient: mockPublicClient,
+      });
+      policy = new PolicyEngine(contracts, events, telemetry);
+
+      const listener = vi.fn();
+      events.on('policy.detached', listener);
+
+      await policy.detach('policy_1', 'identity_1');
+
+      expect(listener).toHaveBeenCalledWith({
+        policyId: 'policy_1',
+        identityId: 'identity_1',
+      });
     });
 
     it('tracks telemetry', async () => {
@@ -610,6 +633,29 @@ describe('PolicyEngine', () => {
       expect(contracts.getContract('policy').write.revoke).toHaveBeenCalled();
     });
 
+    it('emits policy.revoked event after successful transaction', async () => {
+      const mockContract = createMockContract({
+        write: {
+          revoke: vi.fn().mockResolvedValue('0xtxhash'),
+        },
+      });
+      const mockPublicClient = createMockPublicClient();
+      contracts = createMockContractFactory({
+        contract: mockContract,
+        publicClient: mockPublicClient,
+      });
+      policy = new PolicyEngine(contracts, events, telemetry);
+
+      const listener = vi.fn();
+      events.on('policy.revoked', listener);
+
+      await policy.revoke('policy_1');
+
+      expect(listener).toHaveBeenCalledWith({
+        policyId: 'policy_1',
+      });
+    });
+
     it('tracks telemetry', async () => {
       const mockContract = createMockContract({
         write: {
@@ -690,6 +736,45 @@ describe('PolicyEngine', () => {
       expect(result.policyId).toBeTruthy();
       expect(result.name).toContain('Composite');
       expect(contracts.getContract('policy').write.compose).toHaveBeenCalled();
+    });
+
+    it('emits policy.composed event after successful transaction', async () => {
+      const mockPolicyId = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' as `0x${string}`;
+      const mockOnChainPolicy: OnChainPolicy = {
+        policyId: mockPolicyId,
+        name: 'Composite Policy (2 policies)',
+        creator: '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`,
+        applicableActorTypes: [0],
+        state: 0,
+        createdAt: 1234567890n,
+        expiresAt: 0n,
+      };
+
+      const mockContract = createMockContract({
+        write: {
+          compose: vi.fn().mockResolvedValue('0xtxhash'),
+        },
+        read: {
+          getPolicy: vi.fn().mockResolvedValue(mockOnChainPolicy),
+          getRules: vi.fn().mockResolvedValue([]),
+        },
+      });
+      const mockPublicClient = createMockPublicClient();
+      contracts = createMockContractFactory({
+        contract: mockContract,
+        publicClient: mockPublicClient,
+      });
+      policy = new PolicyEngine(contracts, events, telemetry);
+
+      const listener = vi.fn();
+      events.on('policy.composed', listener);
+
+      await policy.compose(['policy_1', 'policy_2']);
+
+      expect(listener).toHaveBeenCalledWith({
+        policyId: expect.any(String),
+        name: 'Composite Policy (2 policies)',
+      });
     });
 
     it('tracks telemetry with policy count', async () => {

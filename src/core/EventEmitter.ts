@@ -9,6 +9,10 @@ export interface InvarianceEvents {
   'intent.completed': { intentId: string; txHash: string };
   'intent.rejected': { intentId: string; reason: string };
   'policy.created': { policyId: string; name: string };
+  'policy.attached': { policyId: string; identityId: string };
+  'policy.detached': { policyId: string; identityId: string };
+  'policy.revoked': { policyId: string };
+  'policy.composed': { policyId: string; name: string };
   'policy.violation': { policyId: string; action: string; detail: string };
   'escrow.created': { escrowId: string; amount: string };
   'escrow.funded': { escrowId: string };
