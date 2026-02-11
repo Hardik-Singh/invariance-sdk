@@ -85,6 +85,10 @@ export function createMockPublicClient(overrides?: {
 
   return {
     waitForTransactionReceipt: vi.fn().mockResolvedValue(defaultReceipt),
+    getGasPrice: vi.fn().mockResolvedValue(1000000000n), // 1 gwei
+    getBalance: vi.fn().mockResolvedValue(1000000000000000000n), // 1 ETH
+    getTransactionReceipt: vi.fn().mockResolvedValue(defaultReceipt),
+    watchContractEvent: vi.fn().mockReturnValue(() => { /* unsubscribe */ }),
   };
 }
 

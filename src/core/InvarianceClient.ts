@@ -14,6 +14,9 @@ import { ReputationEngine } from '../modules/reputation/ReputationEngine.js';
 import { MarketplaceKit } from '../modules/marketplace/MarketplaceKit.js';
 import { GasManager } from '../modules/gas/GasManager.js';
 import { WebhookManager } from '../modules/webhooks/WebhookManager.js';
+import { X402Manager } from '../modules/x402/X402Manager.js';
+import { ERC8004Manager } from '../modules/erc8004/ERC8004Manager.js';
+import { InvarianceBridge } from '../modules/erc8004/InvarianceBridge.js';
 import type { VerificationResult } from '../modules/verify/types.js';
 
 /**
@@ -34,7 +37,7 @@ export interface VerifyProxy extends Verifier {
 /**
  * The main entry point for the Invariance SDK.
  *
- * Lazily initializes all 11 module managers and exposes them as properties.
+ * Lazily initializes all 12 module managers and exposes them as properties.
  * The constructor validates chain configuration and contract availability.
  *
  * @example
@@ -92,6 +95,9 @@ export class Invariance {
   private _marketplace?: MarketplaceKit;
   private _gas?: GasManager;
   private _webhooks?: WebhookManager;
+  private _x402?: X402Manager;
+  private _erc8004?: ERC8004Manager;
+  private _erc8004Bridge?: InvarianceBridge;
 
   constructor(config: InvarianceConfig) {
     this.config = config;
@@ -291,6 +297,64 @@ export class Invariance {
       this._webhooks = new WebhookManager(this.contracts, this.events, this.telemetry);
     }
     return this._webhooks;
+  }
+
+  /**
+   * X402 Payment Protocol module.
+   *
+   * Pay-per-action execution and agent-to-agent payments via x402.
+   * 5 methods: payForAction, verifyPayment, history, estimateCost, configure
+   */
+  get x402(): X402Manager {
+    if (!this._x402) {
+      this._x402 = new X402Manager(this.contracts, this.events, this.telemetry);
+    }
+    return this._x402;
+  }
+
+  /**
+   * ERC-8004 (Trustless Agents) module.
+   *
+   * Standalone manager for on-chain agent identity, reputation, and validation.
+   * Works without any Invariance contracts — just ERC-8004 registries.
+   * 14 methods: register, getAgent, setMetadata, getMetadata, setAgentWallet,
+   * setAgentURI, getGlobalId, giveFeedback, revokeFeedback, getSummary,
+   * readFeedback, readAllFeedback, requestValidation, respondToValidation,
+   * getValidationStatus, getValidationSummary
+   */
+  get erc8004(): ERC8004Manager {
+    if (!this._erc8004) {
+      const chainId = this.contracts.getChainId();
+      this._erc8004 = new ERC8004Manager({
+        chainId,
+        publicClient: this.contracts.getPublicClient(),
+        walletClient: this.contracts.hasClients() ? this.contracts.getWalletClient() : undefined,
+      });
+    }
+    return this._erc8004;
+  }
+
+  /**
+   * ERC-8004 Bridge module.
+   *
+   * Optional bridge between ERC-8004 and Invariance modules.
+   * Links identities, bridges reputation, enables cross-protocol validation.
+   * 6 methods: linkIdentity, getLinkedIdentity, unlinkIdentity,
+   * pullERC8004Reputation, pushFeedbackFromLedger, actAsValidator,
+   * requestInvarianceValidation
+   */
+  get erc8004Bridge(): InvarianceBridge {
+    if (!this._erc8004Bridge) {
+      this._erc8004Bridge = new InvarianceBridge(
+        this.erc8004,
+        this.identity,
+        this.ledger,
+        this.contracts,
+        this.events,
+        this.telemetry,
+      );
+    }
+    return this._erc8004Bridge;
   }
 
   // ===========================================================================

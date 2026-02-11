@@ -1,7 +1,38 @@
 import type { ContractFactory } from '../../core/ContractFactory.js';
 import type { InvarianceEventEmitter } from '../../core/EventEmitter.js';
 import type { Telemetry } from '../../core/Telemetry.js';
+import { formatEther } from 'viem';
 import type { GasEstimate, GasBalance, EstimateGasOptions } from './types.js';
+
+/** Gas limits by action type (conservative estimates) */
+const GAS_LIMITS: Record<string, number> = {
+  'register': 200_000,
+  'update': 150_000,
+  'policy': 250_000,
+  'create-policy': 250_000,
+  'attach-policy': 150_000,
+  'intent': 200_000,
+  'request': 200_000,
+  'approve': 100_000,
+  'reject': 80_000,
+  'escrow': 250_000,
+  'create-escrow': 250_000,
+  'fund': 150_000,
+  'release': 120_000,
+  'refund': 120_000,
+  'dispute': 150_000,
+  'ledger': 150_000,
+  'log': 150_000,
+  'review': 180_000,
+  'swap': 200_000,
+  'transfer': 100_000,
+};
+
+/** Default gas limit for unknown actions */
+const DEFAULT_GAS_LIMIT = 200_000;
+
+/** Approximate ETH/USD rate for USDC conversion baseline */
+const ETH_USD_BASELINE = 3000;
 
 /**
  * Gas abstraction for Invariance operations.
@@ -43,18 +74,28 @@ export class GasManager {
   async estimate(opts: EstimateGasOptions): Promise<GasEstimate> {
     this.telemetry.track('gas.estimate', { action: opts.action });
 
-    // TODO: Estimate gas via eth_estimateGas or simulation
-    // 1. Build transaction data for the action
-    // 2. Call eth_estimateGas
-    // 3. Fetch current gas price
-    // 4. Convert to USDC using price feed
+    const publicClient = this.contracts.getPublicClient();
     const strategy = this.contracts.getGasStrategy();
 
+    // Get current gas price from RPC
+    const gasPrice = await publicClient.getGasPrice();
+
+    // Look up gas limit for the action
+    const gasLimit = GAS_LIMITS[opts.action] ?? DEFAULT_GAS_LIMIT;
+
+    // Calculate ETH cost: gasLimit * gasPrice (in wei)
+    const ethCostWei = BigInt(gasLimit) * gasPrice;
+    const ethCost = formatEther(ethCostWei);
+
+    // Convert to USDC at baseline rate
+    const ethCostNum = parseFloat(ethCost);
+    const usdcCost = (ethCostNum * ETH_USD_BASELINE).toFixed(6);
+
     return {
-      ethCost: '0.00',
-      usdcCost: '0.00',
-      gasLimit: 100_000,
-      gasPrice: '0',
+      ethCost,
+      usdcCost,
+      gasLimit,
+      gasPrice: gasPrice.toString(),
       strategy,
     };
   }
@@ -70,14 +111,36 @@ export class GasManager {
   async balance(): Promise<GasBalance> {
     this.telemetry.track('gas.balance');
 
-    // TODO: Query RPC for ETH + USDC balances
-    // Check if gas abstraction is possible
+    const publicClient = this.contracts.getPublicClient();
     const strategy = this.contracts.getGasStrategy();
+    const walletAddress = this.contracts.getWalletAddress() as `0x${string}`;
+
+    // Get ETH balance
+    const ethBalanceWei = await publicClient.getBalance({ address: walletAddress });
+    const ethBalance = formatEther(ethBalanceWei);
+
+    // Get USDC balance
+    let usdcBalance = '0.00';
+    try {
+      const usdcContract = this.contracts.getContract('mockUsdc');
+      const balanceOfFn = usdcContract.read['balanceOf'];
+      if (balanceOfFn) {
+        const rawBalance = await balanceOfFn([walletAddress]) as bigint;
+        // USDC has 6 decimals
+        usdcBalance = (Number(rawBalance) / 1_000_000).toFixed(6);
+      }
+    } catch {
+      // USDC contract may not be available
+    }
+
+    // Can abstract gas if strategy is abstracted AND USDC balance is sufficient
+    const hasUsdc = parseFloat(usdcBalance) > 0;
+    const canAbstract = strategy === 'abstracted' && hasUsdc;
 
     return {
-      ethBalance: '0.00',
-      usdcBalance: '0.00',
-      canAbstract: strategy === 'abstracted',
+      ethBalance,
+      usdcBalance,
+      canAbstract,
     };
   }
 }

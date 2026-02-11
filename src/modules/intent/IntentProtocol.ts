@@ -352,9 +352,7 @@ export class IntentProtocol {
       const publicClient = this.contracts.getPublicClient();
 
       // Get current signer address
-      const account = publicClient.account;
-      if (!account) throw new InvarianceError(ErrorCode.NOT_AUTHORIZED_SIGNER, 'No account connected');
-      const signerAddress = account.address as `0x${string}`;
+      const signerAddress = this.contracts.getWalletAddress() as `0x${string}`;
 
       // Resolve approver identity ID
       const resolveFn = identityContract.read['resolve'];
@@ -486,7 +484,7 @@ export class IntentProtocol {
           },
           metadataHash: intent.metadataHash,
           verifiable: true,
-          raw: JSON.stringify({ intentId: fromBytes32(intent.intentId), completedAt: intent.completedAt }),
+          raw: JSON.stringify({ intentId: fromBytes32(intent.intentId), completedAt: Number(intent.completedAt) }),
         };
       }
 

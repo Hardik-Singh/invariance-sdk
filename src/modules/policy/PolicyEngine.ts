@@ -16,6 +16,7 @@ import {
 } from '../../utils/contract-helpers.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
 import { serializeRules, deserializeRules } from './rule-serializer.js';
+import { X402Manager } from '../x402/X402Manager.js';
 import type {
   CreatePolicyOptions,
   SpecPolicy,
@@ -57,6 +58,7 @@ export class PolicyEngine {
   private readonly events: InvarianceEventEmitter;
   private readonly telemetry: Telemetry;
   private indexer: IndexerClient | null = null;
+  private x402: X402Manager | null = null;
 
   constructor(
     contracts: ContractFactory,
@@ -66,6 +68,14 @@ export class PolicyEngine {
     this.contracts = contracts;
     this.events = events;
     this.telemetry = telemetry;
+  }
+
+  /** Lazily initialize the X402 manager */
+  private getX402Manager(): X402Manager {
+    if (!this.x402) {
+      this.x402 = new X402Manager(this.contracts, this.events, this.telemetry);
+    }
+    return this.x402;
   }
 
   /** Lazily initialize the indexer client */
@@ -382,14 +392,68 @@ export class PolicyEngine {
       if (!evaluateFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'evaluate function not found on contract');
       const result = await evaluateFn([identityIdBytes, actionBytes, target as `0x${string}`, value, data]) as [boolean, `0x${string}`];
 
-      const [allowed] = result;
+      let [allowed] = result;
+      const ruleResults: { type: import('@invariance/common').PolicyRuleType; passed: boolean; detail: string; remaining?: string }[] = [];
 
-      // Parse resultsBytes to extract rule results
-      // For now, return simple result
+      // Check for require-payment rules in the policy
+      const policyIdBytes = toBytes32(opts.policyId);
+      const getRulesFn = contract.read['getRules'];
+      if (getRulesFn) {
+        try {
+          const rawRules = await getRulesFn([policyIdBytes]) as readonly OnChainPolicyRule[];
+          const rules = deserializeRules(Array.from(rawRules));
+
+          for (const rule of rules) {
+            if (rule.type === 'require-payment') {
+              const config = rule.config as { minAmount?: string; exemptActions?: string[] };
+              const exemptActions = config.exemptActions ?? [];
+
+              if (exemptActions.includes(opts.action)) {
+                ruleResults.push({
+                  type: 'require-payment',
+                  passed: true,
+                  detail: `Action "${opts.action}" is exempt from payment requirement`,
+                });
+                continue;
+              }
+
+              if (!opts.paymentReceiptId) {
+                allowed = false;
+                ruleResults.push({
+                  type: 'require-payment',
+                  passed: false,
+                  detail: 'Payment required but no receipt provided',
+                });
+                continue;
+              }
+
+              // Verify payment receipt
+              const x402 = this.getX402Manager();
+              const verification = await x402.verifyPayment(opts.paymentReceiptId);
+              const passed = verification.valid;
+
+              if (!passed) {
+                allowed = false;
+              }
+
+              ruleResults.push({
+                type: 'require-payment',
+                passed,
+                detail: passed
+                  ? `Payment verified: ${opts.paymentReceiptId}`
+                  : `Payment verification failed: ${verification.reason}`,
+              });
+            }
+          }
+        } catch {
+          // If we can't read rules, skip payment check
+        }
+      }
+
       return {
         allowed,
         policyId: opts.policyId,
-        ruleResults: [],
+        ruleResults,
       };
     } catch (err) {
       throw mapContractError(err);

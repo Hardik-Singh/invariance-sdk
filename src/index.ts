@@ -247,6 +247,46 @@ export type {
 } from './modules/webhooks/types.js';
 
 // ============================================================================
+// Module Types — X402
+// ============================================================================
+
+export { X402Manager } from './modules/x402/X402Manager.js';
+export type {
+  PayForActionOptions,
+  PaymentReceipt,
+  PaymentVerification,
+  PaymentHistoryFilters,
+  PaymentEstimate,
+  X402Settings,
+} from './modules/x402/types.js';
+
+// ============================================================================
+// Module — ERC-8004 (Trustless Agents)
+// ============================================================================
+
+export { ERC8004Manager, ERC8004Error } from './modules/erc8004/ERC8004Manager.js';
+export { InvarianceBridge as ERC8004Bridge } from './modules/erc8004/InvarianceBridge.js';
+export type {
+  ERC8004Config,
+  ERC8004RegistryAddresses,
+  ERC8004AgentIdentity,
+  ERC8004Metadata,
+  GiveFeedbackOptions,
+  ERC8004Feedback,
+  ERC8004ReputationSummary,
+  ReputationSummaryFilterOptions,
+  ValidationRequestOptions,
+  ValidationResponseOptions,
+  ERC8004ValidationStatus,
+  ERC8004ValidationSummary,
+  ValidationSummaryFilterOptions,
+  LinkedIdentity,
+  ExternalReputationSignal,
+  PushFeedbackOptions,
+} from './modules/erc8004/types.js';
+export { isERC8004Supported, getERC8004Addresses } from './modules/erc8004/addresses.js';
+
+// ============================================================================
 // Common Types (re-exported for convenience)
 // ============================================================================
 
@@ -260,6 +300,7 @@ export type {
   ContractAddresses,
 } from '@invariance/common';
 export type { EIP1193Provider, InvarianceSigner } from '@invariance/common';
+export type { PaymentOptions, RequirePaymentConfig, PaymentGatedAuthorization } from '@invariance/common';
 
 // ============================================================================
 // Utility Functions

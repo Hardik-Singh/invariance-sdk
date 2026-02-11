@@ -20,6 +20,8 @@ export interface EvaluateOptions {
   action: string;
   amount?: string;
   params?: Record<string, unknown>;
+  /** x402 payment receipt ID for require-payment rule verification */
+  paymentReceiptId?: string;
 }
 
 /** Filters for listing policies */

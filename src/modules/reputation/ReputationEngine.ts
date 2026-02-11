@@ -223,9 +223,7 @@ export class ReputationEngine {
       const publicClient = this.contracts.getPublicClient();
 
       // Get current account
-      const account = publicClient.account;
-      if (!account) throw new InvarianceError(ErrorCode.NOT_AUTHORIZED_SIGNER, 'No account connected');
-      const accountAddress = account.address as `0x${string}`;
+      const accountAddress = this.contracts.getWalletAddress() as `0x${string}`;
 
       // Resolve reviewer and target identity IDs
       const resolveFn = identityContract.read['resolve'];

@@ -19,6 +19,12 @@ export interface InvarianceEvents {
   'marketplace.listed': { listingId: string };
   'marketplace.hired': { hireId: string; listingId: string };
   'webhook.delivered': { webhookId: string; event: string };
+  'payment.completed': { paymentId: string; action: string; amount: string };
+  'payment.failed': { action: string; reason: string };
+  'erc8004.identity.linked': { invarianceIdentityId: string; erc8004AgentId: string };
+  'erc8004.identity.unlinked': { invarianceIdentityId: string; erc8004AgentId: string };
+  'erc8004.feedback.pushed': { erc8004AgentId: string; value: number };
+  'erc8004.validation.responded': { requestHash: string; response: number };
   'error': { code: string; message: string };
 }
 
