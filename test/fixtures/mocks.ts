@@ -1,8 +1,12 @@
 import { vi } from 'vitest';
 import type { InvarianceConfig } from '@invariance/common';
+import { encodeEventTopics, encodeAbiParameters, type Abi } from 'viem';
 import { ContractFactory } from '../../src/core/ContractFactory.js';
 import { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import { Telemetry } from '../../src/core/Telemetry.js';
+import { InvarianceIntentAbi } from '../../src/contracts/abis/index.js';
+import { InvarianceLedgerAbi } from '../../src/contracts/abis/index.js';
+import { InvarianceReviewAbi } from '../../src/contracts/abis/index.js';
 
 /** Base Sepolia config fixture */
 export const BASE_SEPOLIA_CONFIG: InvarianceConfig = {
@@ -115,6 +119,8 @@ export function createMockContractFactory(opts?: {
   vi.spyOn(factory, 'getApiBaseUrl').mockReturnValue('https://api-sepolia.useinvariance.com');
   vi.spyOn(factory, 'getExplorerBaseUrl').mockReturnValue('https://sepolia.basescan.org');
   vi.spyOn(factory, 'getAddress').mockReturnValue('0x1234567890abcdef1234567890abcdef12345678');
+  vi.spyOn(factory, 'getWalletClient').mockReturnValue(createMockWalletClient() as unknown as ReturnType<ContractFactory['getWalletClient']>);
+  vi.spyOn(factory, 'getWalletAddress').mockReturnValue('0x1111111111111111111111111111111111111111');
 
   return factory;
 }
@@ -132,4 +138,82 @@ export function createMockSetup(opts?: {
   const mockPublicClient = opts?.publicClient ?? createMockPublicClient();
   const factory = createMockContractFactory({ contract: mockContract, publicClient: mockPublicClient });
   return { factory, mockContract, mockPublicClient };
+}
+
+/**
+ * Create a mock WalletClient for tests that need signing.
+ */
+export function createMockWalletClient() {
+  return {
+    account: {
+      address: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+      type: 'local' as const,
+    },
+    signMessage: vi.fn().mockResolvedValue('0x' + 'ab'.repeat(65)),
+    getAddresses: vi.fn().mockResolvedValue(['0x1111111111111111111111111111111111111111']),
+  };
+}
+
+/**
+ * Create a properly ABI-encoded mock log for the IntentRequested event.
+ */
+export function createMockIntentRequestedLog(intentId: `0x${string}`) {
+  const topics = encodeEventTopics({
+    abi: InvarianceIntentAbi as Abi,
+    eventName: 'IntentRequested',
+    args: {
+      intentId,
+      requesterIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      requester: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+    },
+  });
+  const data = encodeAbiParameters(
+    [{ type: 'bytes32' }, { type: 'address' }, { type: 'uint256' }],
+    [
+      '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+      '0x0000000000000000000000000000000000000000' as `0x${string}`,
+      0n,
+    ],
+  );
+  return { topics: topics as readonly string[], data };
+}
+
+/**
+ * Create a properly ABI-encoded mock log for the EntryLogged event.
+ */
+export function createMockEntryLoggedLog(entryId: `0x${string}`) {
+  const topics = encodeEventTopics({
+    abi: InvarianceLedgerAbi as Abi,
+    eventName: 'EntryLogged',
+    args: {
+      entryId,
+      actorIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      actorAddress: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+    },
+  });
+  const data = encodeAbiParameters(
+    [{ type: 'string' }, { type: 'string' }, { type: 'uint8' }, { type: 'uint256' }],
+    ['test-action', 'custom', 0, 0n],
+  );
+  return { topics: topics as readonly string[], data };
+}
+
+/**
+ * Create a properly ABI-encoded mock log for the ReviewSubmitted event.
+ */
+export function createMockReviewSubmittedLog(reviewId: `0x${string}`) {
+  const topics = encodeEventTopics({
+    abi: InvarianceReviewAbi as Abi,
+    eventName: 'ReviewSubmitted',
+    args: {
+      reviewId,
+      targetIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      escrowId: '0x0000000000000000000000000000000000000000000000000000000000000002' as `0x${string}`,
+    },
+  });
+  const data = encodeAbiParameters(
+    [{ type: 'address' }, { type: 'uint8' }],
+    ['0x1111111111111111111111111111111111111111' as `0x${string}`, 5],
+  );
+  return { topics: topics as readonly string[], data };
 }

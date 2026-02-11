@@ -71,9 +71,7 @@ export { EscrowManager } from './modules/escrow/EscrowManager.js';
 export { EventLedger } from './modules/ledger/EventLedger.js';
 export { Verifier } from './modules/verify/Verifier.js';
 export { ReputationEngine } from './modules/reputation/ReputationEngine.js';
-export { MarketplaceKit } from './modules/marketplace/MarketplaceKit.js';
 export { GasManager } from './modules/gas/GasManager.js';
-export { WebhookManager } from './modules/webhooks/WebhookManager.js';
 
 // ============================================================================
 // Module Types — Identity
@@ -203,48 +201,11 @@ export type {
 } from './modules/reputation/types.js';
 
 // ============================================================================
-// Module Types — Marketplace
-// ============================================================================
-
-export type {
-  RegisterListingOptions,
-  Listing,
-  ListingCategory,
-  PricingModel,
-  SearchQuery,
-  SearchResults,
-  HireOptions,
-  HireResult,
-  CompletionResult,
-} from './modules/marketplace/types.js';
-export type {
-  UpdateListingOptions,
-  FeaturedOptions,
-  CompleteHireOptions,
-} from './modules/marketplace/types.js';
-
-// ============================================================================
 // Module Types — Gas
 // ============================================================================
 
 export type { GasBalance } from './modules/gas/types.js';
 export type { EstimateGasOptions } from './modules/gas/types.js';
-
-// ============================================================================
-// Module Types — Webhooks
-// ============================================================================
-
-export type {
-  RegisterWebhookOptions,
-  Webhook,
-  WebhookEvent,
-  WebhookPayload,
-  DeliveryLog,
-} from './modules/webhooks/types.js';
-export type {
-  UpdateWebhookOptions,
-  WebhookLogOptions,
-} from './modules/webhooks/types.js';
 
 // ============================================================================
 // Module Types — X402

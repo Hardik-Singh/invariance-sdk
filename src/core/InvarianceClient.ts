@@ -11,9 +11,7 @@ import { EscrowManager } from '../modules/escrow/EscrowManager.js';
 import { EventLedger } from '../modules/ledger/EventLedger.js';
 import { Verifier } from '../modules/verify/Verifier.js';
 import { ReputationEngine } from '../modules/reputation/ReputationEngine.js';
-import { MarketplaceKit } from '../modules/marketplace/MarketplaceKit.js';
 import { GasManager } from '../modules/gas/GasManager.js';
-import { WebhookManager } from '../modules/webhooks/WebhookManager.js';
 import { X402Manager } from '../modules/x402/X402Manager.js';
 import { ERC8004Manager } from '../modules/erc8004/ERC8004Manager.js';
 import { InvarianceBridge } from '../modules/erc8004/InvarianceBridge.js';
@@ -92,9 +90,7 @@ export class Invariance {
   private _ledger?: EventLedger;
   private _verify?: VerifyProxy;
   private _reputation?: ReputationEngine;
-  private _marketplace?: MarketplaceKit;
   private _gas?: GasManager;
-  private _webhooks?: WebhookManager;
   private _x402?: X402Manager;
   private _erc8004?: ERC8004Manager;
   private _erc8004Bridge?: InvarianceBridge;
@@ -115,7 +111,7 @@ export class Invariance {
     if (config.signer !== undefined) {
       const chain = config.chain === 'base' ? base : baseSepolia;
       const rpcUrl = this.contracts.getRpcUrl();
-      this._wallet = new WalletManager(this.contracts, this.events, this.telemetry);
+      this._wallet = new WalletManager(this.contracts, this.telemetry);
       this._walletInitPromise = this._wallet.initFromSigner(config.signer, rpcUrl, chain).then(() => {
         if (this._wallet!.isConnected()) {
           this.contracts.setClients(this._wallet!.getPublicClient(), this._wallet!.getWalletClient());
@@ -159,7 +155,7 @@ export class Invariance {
    */
   get wallet(): WalletManager {
     if (!this._wallet) {
-      this._wallet = new WalletManager(this.contracts, this.events, this.telemetry);
+      this._wallet = new WalletManager(this.contracts, this.telemetry);
     }
     return this._wallet;
   }
@@ -261,19 +257,6 @@ export class Invariance {
   }
 
   /**
-   * Marketplace Kit module.
-   *
-   * Agent listing, search, hire, review lifecycle.
-   * 8 methods: register, update, deactivate, search, get, featured, hire, complete
-   */
-  get marketplace(): MarketplaceKit {
-    if (!this._marketplace) {
-      this._marketplace = new MarketplaceKit(this.contracts, this.events, this.telemetry);
-    }
-    return this._marketplace;
-  }
-
-  /**
    * Gas management module.
    *
    * Gas abstraction (USDC-based).
@@ -284,19 +267,6 @@ export class Invariance {
       this._gas = new GasManager(this.contracts, this.events, this.telemetry);
     }
     return this._gas;
-  }
-
-  /**
-   * Webhook management module.
-   *
-   * Server-side event notifications.
-   * 6 methods: register, update, delete, list, test, logs
-   */
-  get webhooks(): WebhookManager {
-    if (!this._webhooks) {
-      this._webhooks = new WebhookManager(this.contracts, this.events, this.telemetry);
-    }
-    return this._webhooks;
   }
 
   /**

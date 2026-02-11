@@ -7,14 +7,12 @@ import {
   createMockPublicClient,
   createEventEmitter,
   createTelemetry,
+  createMockReviewSubmittedLog,
 } from '../fixtures/mocks.js';
 import type { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
 import type { ContractFactory } from '../../src/core/ContractFactory.js';
 import { toBytes32 } from '../../src/utils/contract-helpers.js';
-
-/** Compute event signature the same way the helpers do */
-const REVIEW_SUBMITTED_SIG = '0x' + Buffer.from('ReviewSubmitted(bytes32,bytes32,bytes32,bytes32,uint8)').toString('hex');
 
 describe('ReputationEngine', () => {
   let factory: ContractFactory;
@@ -102,7 +100,7 @@ describe('ReputationEngine', () => {
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{ topics: [REVIEW_SUBMITTED_SIG, toBytes32('review-1')], data: '0x' }],
+        logs: [createMockReviewSubmittedLog(toBytes32('review-1'))],
       });
 
       const result = await reputation.review({
@@ -133,7 +131,7 @@ describe('ReputationEngine', () => {
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{ topics: [REVIEW_SUBMITTED_SIG, toBytes32('review-1')], data: '0x' }],
+        logs: [createMockReviewSubmittedLog(toBytes32('review-1'))],
       });
 
       await reputation.review({

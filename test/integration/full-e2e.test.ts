@@ -13,6 +13,9 @@ import {
   createMockPublicClient,
   createEventEmitter,
   createTelemetry,
+  createMockIntentRequestedLog,
+  createMockEntryLoggedLog,
+  createMockReviewSubmittedLog,
 } from '../fixtures/mocks.js';
 import type { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
@@ -21,11 +24,6 @@ import type { OnChainIdentity } from '../../src/modules/identity/types.js';
 import type { OnChainPolicy, OnChainPolicyRule } from '../../src/modules/policy/types.js';
 import type { OnChainEscrow } from '../../src/modules/escrow/types.js';
 import { toBytes32 } from '../../src/utils/contract-helpers.js';
-
-/** Compute event signatures the same way the helpers do */
-const INTENT_REQUESTED_SIG = '0x' + Buffer.from('IntentRequested(bytes32,address,bytes32,bytes32,uint256,bytes)').toString('hex');
-const ENTRY_LOGGED_SIG = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
-const REVIEW_SUBMITTED_SIG = '0x' + Buffer.from('ReviewSubmitted(bytes32,bytes32,bytes32,bytes32,uint8)').toString('hex');
 
 /**
  * Full E2E Integration Tests
@@ -238,7 +236,7 @@ describe('Full E2E Integration', () => {
       blockNumber: 100n,
       gasUsed: 21000n,
       status: 'success' as const,
-      logs: [{ topics: [INTENT_REQUESTED_SIG, INTENT_ID], data: '0x' }],
+      logs: [createMockIntentRequestedLog(INTENT_ID)],
     });
 
     // --- Factory ---
@@ -346,7 +344,7 @@ describe('Full E2E Integration', () => {
         blockNumber: 200n,
         gasUsed: 50000n,
         status: 'success' as const,
-        logs: [{ topics: [ENTRY_LOGGED_SIG, ENTRY_ID], data: '0x' }],
+        logs: [createMockEntryLoggedLog(ENTRY_ID)],
       });
 
       const entry = await ledger.log({
@@ -368,7 +366,7 @@ describe('Full E2E Integration', () => {
         blockNumber: 200n,
         gasUsed: 50000n,
         status: 'success' as const,
-        logs: [{ topics: [ENTRY_LOGGED_SIG, ENTRY_ID], data: '0x' }],
+        logs: [createMockEntryLoggedLog(ENTRY_ID)],
       });
 
       const verification = await verifier.verify('0xtx_ledger');
@@ -477,7 +475,7 @@ describe('Full E2E Integration', () => {
         blockNumber: 300n,
         gasUsed: 80000n,
         status: 'success' as const,
-        logs: [{ topics: [REVIEW_SUBMITTED_SIG, REVIEW_ID], data: '0x' }],
+        logs: [createMockReviewSubmittedLog(REVIEW_ID)],
       });
 
       const reviewResult = await reputation.review({
@@ -566,7 +564,7 @@ describe('Full E2E Integration', () => {
           blockNumber: 100n,
           gasUsed: 21000n,
           status: 'success' as const,
-          logs: [{ topics: [ENTRY_LOGGED_SIG, ENTRY_ID], data: '0x' }],
+          logs: [createMockEntryLoggedLog(ENTRY_ID)],
         })
         // Second tx reverted
         .mockResolvedValueOnce({
@@ -597,7 +595,7 @@ describe('Full E2E Integration', () => {
             blockNumber: 103n,
             gasUsed: 21000n,
             status: 'success' as const,
-            logs: [{ topics: [INTENT_REQUESTED_SIG, INTENT_ID], data: '0x' }],
+            logs: [createMockIntentRequestedLog(INTENT_ID)],
           });
         }
         if (hash === '0xtx_ledger') {
@@ -606,7 +604,7 @@ describe('Full E2E Integration', () => {
             blockNumber: 105n,
             gasUsed: 50000n,
             status: 'success' as const,
-            logs: [{ topics: [ENTRY_LOGGED_SIG, ENTRY_ID], data: '0x' }],
+            logs: [createMockEntryLoggedLog(ENTRY_ID)],
           });
         }
         // Default receipt for identity/policy/attach/approve

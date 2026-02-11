@@ -5,6 +5,8 @@ import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
 import type { EscrowState } from '@invariance/common';
+import { decodeEventLog } from 'viem';
+import { InvarianceLedgerAbi, InvarianceIntentAbi } from '../../contracts/abis/index.js';
 import {
   toBytes32,
   fromBytes32,
@@ -136,27 +138,35 @@ export class Verifier {
         );
       }
 
-      // 2. Parse EntryLogged events from receipt logs
-      // Look for EntryLogged event topic in the logs
+      // 2. Parse EntryLogged / IntentRequested events from receipt logs using ABI decoding
       let entryId: `0x${string}` | null = null;
-      const entryLoggedSig = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
 
       for (const log of receipt.logs) {
-        if (log.topics[0] === entryLoggedSig && log.topics.length > 1) {
-          entryId = log.topics[1] as `0x${string}`;
-          break;
-        }
-      }
-
-      // Also check for IntentRequested events
-      if (!entryId) {
-        const intentSig = '0x' + Buffer.from('IntentRequested(bytes32,address,bytes32,bytes32,uint256,bytes)').toString('hex');
-        for (const log of receipt.logs) {
-          if (log.topics[0] === intentSig && log.topics.length > 1) {
-            entryId = log.topics[1] as `0x${string}`;
+        // Try EntryLogged
+        try {
+          const decoded = decodeEventLog({
+            abi: InvarianceLedgerAbi,
+            data: log.data as `0x${string}`,
+            topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+          });
+          if (decoded.eventName === 'EntryLogged') {
+            entryId = (decoded.args as { entryId: `0x${string}` }).entryId;
             break;
           }
-        }
+        } catch { /* not a ledger event */ }
+
+        // Try IntentRequested
+        try {
+          const decoded = decodeEventLog({
+            abi: InvarianceIntentAbi,
+            data: log.data as `0x${string}`,
+            topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+          });
+          if (decoded.eventName === 'IntentRequested') {
+            entryId = (decoded.args as { intentId: `0x${string}` }).intentId;
+            break;
+          }
+        } catch { /* not an intent event */ }
       }
 
       if (!entryId) {

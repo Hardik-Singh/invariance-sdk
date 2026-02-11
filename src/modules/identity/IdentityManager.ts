@@ -402,22 +402,9 @@ export class IdentityManager {
       }
     }
 
-    // On-chain fallback: read identityCount and iterate (limited)
-    try {
-      const contract = this.contracts.getContract('identity');
-      const countFn = contract.read['identityCount'];
-      if (!countFn) return [];
-      const count = await countFn([]) as bigint;
-      const limit = Math.min(Number(count), filters?.limit ?? 50);
-
-      // On-chain sequential reads are expensive, cap at limit
-      // NOTE: On-chain fallback is limited and cannot filter efficiently.
-      // In production, the indexer should always be available.
-      void limit;
-      return [];
-    } catch {
-      return [];
-    }
+    // On-chain fallback: indexer unavailable, return empty
+    console.warn('[Invariance] identity.list(): indexer unavailable, returning empty results');
+    return [];
   }
 
   /**

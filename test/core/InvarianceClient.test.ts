@@ -6,9 +6,7 @@ import { PolicyEngine } from '../../src/modules/policy/PolicyEngine.js';
 import { EscrowManager } from '../../src/modules/escrow/EscrowManager.js';
 import { EventLedger } from '../../src/modules/ledger/EventLedger.js';
 import { ReputationEngine } from '../../src/modules/reputation/ReputationEngine.js';
-import { MarketplaceKit } from '../../src/modules/marketplace/MarketplaceKit.js';
 import { GasManager } from '../../src/modules/gas/GasManager.js';
-import { WebhookManager } from '../../src/modules/webhooks/WebhookManager.js';
 import { WalletManager } from '../../src/modules/wallet/WalletManager.js';
 import { BASE_SEPOLIA_CONFIG, BASE_CONFIG } from '../fixtures/mocks.js';
 
@@ -125,20 +123,11 @@ describe('Invariance (Client)', () => {
       expect(inv.reputation).toBeInstanceOf(ReputationEngine);
     });
 
-    it('marketplace getter returns MarketplaceKit', () => {
-      const inv = new Invariance(BASE_SEPOLIA_CONFIG);
-      expect(inv.marketplace).toBeInstanceOf(MarketplaceKit);
-    });
-
     it('gas getter returns GasManager', () => {
       const inv = new Invariance(BASE_SEPOLIA_CONFIG);
       expect(inv.gas).toBeInstanceOf(GasManager);
     });
 
-    it('webhooks getter returns WebhookManager', () => {
-      const inv = new Invariance(BASE_SEPOLIA_CONFIG);
-      expect(inv.webhooks).toBeInstanceOf(WebhookManager);
-    });
   });
 
   describe('on()', () => {

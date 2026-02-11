@@ -4,7 +4,6 @@ import { WalletManager } from '../../src/modules/wallet/WalletManager.js';
 import { InvarianceError } from '../../src/errors/InvarianceError.js';
 import {
   createContractFactory,
-  createEventEmitter,
   createTelemetry,
 } from '../fixtures/mocks.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
@@ -19,7 +18,7 @@ describe('WalletManager', () => {
   beforeEach(() => {
     factory = createContractFactory();
     telemetry = createTelemetry();
-    wallet = new WalletManager(factory, createEventEmitter(), telemetry);
+    wallet = new WalletManager(factory, telemetry);
   });
 
   afterEach(() => {

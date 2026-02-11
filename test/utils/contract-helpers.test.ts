@@ -73,8 +73,13 @@ describe('contract-helpers', () => {
       expect(identityStatusFromEnum(2)).toBe('deactivated');
     });
 
-    it('throws on unknown value', () => {
+    it('throws INVALID_ACTOR_TYPE on unknown value', () => {
       expect(() => identityStatusFromEnum(99)).toThrow(InvarianceError);
+      try {
+        identityStatusFromEnum(99);
+      } catch (e) {
+        expect((e as InvarianceError).code).toBe(ErrorCode.INVALID_ACTOR_TYPE);
+      }
     });
   });
 

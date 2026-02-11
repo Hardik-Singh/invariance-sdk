@@ -6,14 +6,12 @@ import {
   createMockPublicClient,
   createEventEmitter,
   createTelemetry,
+  createMockEntryLoggedLog,
 } from '../fixtures/mocks.js';
 import type { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
 import type { ContractFactory } from '../../src/core/ContractFactory.js';
 import { toBytes32 } from '../../src/utils/contract-helpers.js';
-
-/** Compute event signature the same way the helpers do */
-const ENTRY_LOGGED_SIG = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
 
 describe('EventLedger', () => {
   let factory: ContractFactory;
@@ -68,7 +66,7 @@ describe('EventLedger', () => {
         blockNumber: 200n,
         gasUsed: 50000n,
         status: 'success' as const,
-        logs: [{ topics: [ENTRY_LOGGED_SIG, toBytes32('entry-1')], data: '0x' }],
+        logs: [createMockEntryLoggedLog(toBytes32('entry-1'))],
       });
 
       const result = await ledger.log({
@@ -95,7 +93,7 @@ describe('EventLedger', () => {
         blockNumber: 200n,
         gasUsed: 50000n,
         status: 'success' as const,
-        logs: [{ topics: [ENTRY_LOGGED_SIG, toBytes32('entry-1')], data: '0x' }],
+        logs: [createMockEntryLoggedLog(toBytes32('entry-1'))],
       });
 
       await ledger.log({
@@ -117,7 +115,7 @@ describe('EventLedger', () => {
         blockNumber: 200n,
         gasUsed: 50000n,
         status: 'success' as const,
-        logs: [{ topics: [ENTRY_LOGGED_SIG, toBytes32('entry-1')], data: '0x' }],
+        logs: [createMockEntryLoggedLog(toBytes32('entry-1'))],
       });
 
       const result = await ledger.log({

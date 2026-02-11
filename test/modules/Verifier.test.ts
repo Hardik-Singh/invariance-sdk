@@ -8,6 +8,8 @@ import {
   createMockPublicClient,
   createEventEmitter,
   createTelemetry,
+  createMockEntryLoggedLog,
+  createMockIntentRequestedLog,
 } from '../fixtures/mocks.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
 import type { ContractFactory } from '../../src/core/ContractFactory.js';
@@ -65,17 +67,12 @@ describe('Verifier', () => {
 
   describe('verify()', () => {
     it('fetches receipt, parses logs, and returns VerificationResult', async () => {
-      const entryLoggedSig = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
-
       mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
         transactionHash: '0xabc123' as `0x${string}`,
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{
-          topics: [entryLoggedSig, toBytes32('entry-1')],
-          data: '0x',
-        }],
+        logs: [createMockEntryLoggedLog(toBytes32('entry-1'))],
       });
 
       mockLedgerContract.read.getEntry.mockResolvedValue({
@@ -133,17 +130,12 @@ describe('Verifier', () => {
     });
 
     it('handles missing ledger entry gracefully (falls through to intent events)', async () => {
-      const intentSig = '0x' + Buffer.from('IntentRequested(bytes32,address,bytes32,bytes32,uint256,bytes)').toString('hex');
-
       mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
         transactionHash: '0xabc123' as `0x${string}`,
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{
-          topics: [intentSig, toBytes32('intent-1')],
-          data: '0x',
-        }],
+        logs: [createMockIntentRequestedLog(toBytes32('intent-1'))],
       });
 
       mockLedgerContract.read.getEntry.mockRejectedValue(new Error('not found'));
@@ -165,8 +157,6 @@ describe('Verifier', () => {
     });
 
     it('delegates to verify() when indexer returns a match', async () => {
-      const entryLoggedSig = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
-
       vi.stubGlobal(
         'fetch',
         vi.fn()
@@ -182,7 +172,7 @@ describe('Verifier', () => {
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{ topics: [entryLoggedSig, toBytes32('entry-1')], data: '0x' }],
+        logs: [createMockEntryLoggedLog(toBytes32('entry-1'))],
       });
       mockLedgerContract.read.getEntry.mockResolvedValue({
         entryId: toBytes32('entry-1'),
@@ -294,15 +284,13 @@ describe('Verifier', () => {
   describe('bulk()', () => {
     it('processes array and returns results for each hash', async () => {
       // First hash succeeds, second fails
-      const entryLoggedSig = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
-
       mockPublicClient.waitForTransactionReceipt
         .mockResolvedValueOnce({
           transactionHash: '0xsuccess' as `0x${string}`,
           blockNumber: 100n,
           gasUsed: 21000n,
           status: 'success' as const,
-          logs: [{ topics: [entryLoggedSig, toBytes32('entry-1')], data: '0x' }],
+          logs: [createMockEntryLoggedLog(toBytes32('entry-1'))],
         })
         .mockResolvedValueOnce({
           transactionHash: '0xfail' as `0x${string}`,

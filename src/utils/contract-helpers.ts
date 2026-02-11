@@ -1,7 +1,11 @@
 import type { ActorType } from '@invariance/common';
-import type { PublicClient } from 'viem';
+import type { PublicClient, WalletClient } from 'viem';
+import { keccak256, toHex, decodeEventLog } from 'viem';
 import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../errors/InvarianceError.js';
+import { InvarianceIntentAbi } from '../contracts/abis/index.js';
+import { InvarianceLedgerAbi } from '../contracts/abis/index.js';
+import { InvarianceReviewAbi } from '../contracts/abis/index.js';
 
 /** On-chain ActorType enum values */
 const ACTOR_TYPE_MAP: Record<ActorType, number> = {
@@ -69,7 +73,7 @@ export function identityStatusFromEnum(val: number): 'active' | 'suspended' | 'd
   const status = IDENTITY_STATUS_MAP[val];
   if (!status) {
     throw new InvarianceError(
-      ErrorCode.IDENTITY_NOT_FOUND,
+      ErrorCode.INVALID_ACTOR_TYPE,
       `Unknown on-chain identity status enum: ${val}`,
     );
   }
@@ -467,17 +471,23 @@ export function intentStatusFromEnum(val: number): 'pending' | 'approved' | 'exe
  * @returns The intent ID as bytes32 hex string
  */
 export function parseIntentIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
-  // The IntentRequested event signature
-  const intentRequestedSig = '0x' + Buffer.from('IntentRequested(bytes32,address,bytes32,bytes32,uint256,bytes)').toString('hex');
-
   for (const log of logs) {
-    if (log.topics[0] === intentRequestedSig && log.topics.length > 1) {
-      return log.topics[1] as `0x${string}`;
+    try {
+      const decoded = decodeEventLog({
+        abi: InvarianceIntentAbi,
+        data: log.data as `0x${string}`,
+        topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+      });
+      if (decoded.eventName === 'IntentRequested') {
+        return (decoded.args as { intentId: `0x${string}` }).intentId;
+      }
+    } catch {
+      continue;
     }
   }
 
   throw new InvarianceError(
-    ErrorCode.NETWORK_ERROR,
+    ErrorCode.TX_REVERTED,
     'IntentRequested event not found in transaction logs',
   );
 }
@@ -491,9 +501,7 @@ export function parseIntentIdFromLogs(logs: readonly { topics: readonly string[]
  */
 export function hashMetadata(metadata: Record<string, unknown>): `0x${string}` {
   const json = JSON.stringify(metadata);
-  const hash = Buffer.from(json).toString('hex');
-  // Simple hash for now - in production, use proper keccak256
-  return `0x${hash.padEnd(64, '0').slice(0, 64)}`;
+  return keccak256(toHex(json));
 }
 
 /*//////////////////////////////////////////////////////////////
@@ -525,47 +533,60 @@ export function mapSeverity(severity: 'info' | 'warn' | 'error'): number {
  * @returns The entry ID as bytes32 hex string
  */
 export function parseEntryIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
-  // The EntryLogged event signature
-  const entryLoggedSig = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
-
   for (const log of logs) {
-    if (log.topics[0] === entryLoggedSig && log.topics.length > 1) {
-      return log.topics[1] as `0x${string}`;
+    try {
+      const decoded = decodeEventLog({
+        abi: InvarianceLedgerAbi,
+        data: log.data as `0x${string}`,
+        topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+      });
+      if (decoded.eventName === 'EntryLogged') {
+        return (decoded.args as { entryId: `0x${string}` }).entryId;
+      }
+    } catch {
+      continue;
     }
   }
 
   throw new InvarianceError(
-    ErrorCode.NETWORK_ERROR,
+    ErrorCode.TX_REVERTED,
     'EntryLogged event not found in transaction logs',
   );
 }
 
 /**
  * Generate actor signature for ledger entry.
- * In production, this would use the actor's private key to sign.
- * For now, generates a placeholder signature.
+ * Signs the event payload with the actor's wallet.
  *
  * @param event - The ledger event being signed
- * @param address - The actor's address
+ * @param walletClient - The actor's viem WalletClient
  * @returns The actor's signature
  */
-export function generateActorSignature(event: { action: string; metadata?: Record<string, unknown> }, address: string): string {
-  // Placeholder signature - in production, use proper signing
-  const payload = JSON.stringify({ ...event, address, timestamp: Date.now() });
-  return `0x${Buffer.from(payload).toString('hex').slice(0, 130)}`;
+export async function generateActorSignature(
+  event: { action: string; metadata?: Record<string, unknown> },
+  walletClient: WalletClient,
+): Promise<string> {
+  const message = JSON.stringify({ action: event.action, metadata: event.metadata ?? {} });
+  const account = walletClient.account;
+  if (!account) {
+    // Fallback: deterministic commitment hash when no account is available
+    return keccak256(toHex(message));
+  }
+  return walletClient.signMessage({ account, message });
 }
 
 /**
  * Generate platform co-signature for ledger entry.
- * This proves the platform witnessed and validated the action.
+ * Produces a keccak256 commitment hash of the event.
+ * NOTE: In production, this should be replaced with server-side signing
+ * using the platform's private key.
  *
  * @param event - The ledger event being co-signed
- * @returns The platform's signature
+ * @returns The platform's commitment hash
  */
 export function generatePlatformSignature(event: { action: string; metadata?: Record<string, unknown> }): string {
-  // Placeholder signature - in production, use platform's signing key
-  const payload = JSON.stringify({ ...event, platform: 'Invariance', timestamp: Date.now() });
-  return `0x${Buffer.from(payload).toString('hex').slice(0, 130)}`;
+  const payload = JSON.stringify({ action: event.action, metadata: event.metadata ?? {}, platform: 'Invariance' });
+  return keccak256(toHex(payload));
 }
 
 /**
@@ -594,17 +615,23 @@ export function convertToCSV(entries: Array<{ entryId: string; action: string; t
  * @returns The review ID as bytes32 hex string
  */
 export function parseReviewIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
-  // The ReviewSubmitted event signature
-  const reviewSubmittedSig = '0x' + Buffer.from('ReviewSubmitted(bytes32,bytes32,bytes32,bytes32,uint8)').toString('hex');
-
   for (const log of logs) {
-    if (log.topics[0] === reviewSubmittedSig && log.topics.length > 1) {
-      return log.topics[1] as `0x${string}`;
+    try {
+      const decoded = decodeEventLog({
+        abi: InvarianceReviewAbi,
+        data: log.data as `0x${string}`,
+        topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+      });
+      if (decoded.eventName === 'ReviewSubmitted') {
+        return (decoded.args as { reviewId: `0x${string}` }).reviewId;
+      }
+    } catch {
+      continue;
     }
   }
 
   throw new InvarianceError(
-    ErrorCode.NETWORK_ERROR,
+    ErrorCode.TX_REVERTED,
     'ReviewSubmitted event not found in transaction logs',
   );
 }

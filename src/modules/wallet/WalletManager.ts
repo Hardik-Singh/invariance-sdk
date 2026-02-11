@@ -10,7 +10,6 @@ import {
   type Chain,
 } from 'viem';
 import type { ContractFactory } from '../../core/ContractFactory.js';
-import type { InvarianceEventEmitter } from '../../core/EventEmitter.js';
 import type { Telemetry } from '../../core/Telemetry.js';
 import type { EIP1193Provider, InvarianceSigner } from '@invariance/common';
 import { ErrorCode } from '@invariance/common';
@@ -43,7 +42,6 @@ export class WalletManager {
 
   constructor(
     contracts: ContractFactory,
-    _events: InvarianceEventEmitter,
     telemetry: Telemetry,
   ) {
     this.contracts = contracts;

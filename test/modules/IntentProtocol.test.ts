@@ -8,15 +8,12 @@ import {
   createMockPublicClient,
   createEventEmitter,
   createTelemetry,
+  createMockIntentRequestedLog,
 } from '../fixtures/mocks.js';
 import type { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
 import type { ContractFactory } from '../../src/core/ContractFactory.js';
 import { toBytes32 } from '../../src/utils/contract-helpers.js';
-
-/** Compute event signature the same way the helpers do */
-const INTENT_REQUESTED_SIG = '0x' + Buffer.from('IntentRequested(bytes32,address,bytes32,bytes32,uint256,bytes)').toString('hex');
-const REVIEW_SUBMITTED_SIG = '0x' + Buffer.from('ReviewSubmitted(bytes32,bytes32,bytes32,bytes32,uint8)').toString('hex');
 
 describe('IntentProtocol', () => {
   let factory: ContractFactory;
@@ -86,7 +83,7 @@ describe('IntentProtocol', () => {
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{ topics: [INTENT_REQUESTED_SIG, toBytes32('intent-1')], data: '0x' }],
+        logs: [createMockIntentRequestedLog(toBytes32('intent-1'))],
       });
 
       const result = await intent.request({
@@ -114,7 +111,7 @@ describe('IntentProtocol', () => {
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{ topics: [INTENT_REQUESTED_SIG, toBytes32('intent-1')], data: '0x' }],
+        logs: [createMockIntentRequestedLog(toBytes32('intent-1'))],
       });
 
       await intent.request({
@@ -138,7 +135,7 @@ describe('IntentProtocol', () => {
         blockNumber: 100n,
         gasUsed: 21000n,
         status: 'success' as const,
-        logs: [{ topics: [INTENT_REQUESTED_SIG, toBytes32('intent-1')], data: '0x' }],
+        logs: [createMockIntentRequestedLog(toBytes32('intent-1'))],
       });
 
       await intent.request({

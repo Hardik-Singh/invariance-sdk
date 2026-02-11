@@ -42,7 +42,7 @@ const ADDRESS_KEY_MAP: Record<ContractName, keyof ContractAddresses> = {
   escrow: 'escrow',
   review: 'review',
   registry: 'registry',
-  mockUsdc: 'usdc' as keyof ContractAddresses,
+  mockUsdc: 'usdc',
 };
 
 /**
@@ -125,7 +125,14 @@ export class ContractFactory {
    * @returns The contract address as a hex string
    */
   getAddress(name: keyof ContractAddresses): string {
-    return this.addresses[name];
+    const addr = this.addresses[name];
+    if (!addr) {
+      throw new InvarianceError(
+        ErrorCode.NETWORK_ERROR,
+        `Contract address not configured: ${name}`,
+      );
+    }
+    return addr;
   }
 
   /**

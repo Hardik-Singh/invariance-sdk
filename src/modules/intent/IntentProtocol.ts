@@ -211,7 +211,8 @@ export class IntentProtocol {
 
       // Generate proof bundle
       const metadata = opts.metadata ?? {};
-      const actorSig = generateActorSignature({ action: opts.action, metadata }, opts.actor.address);
+      const walletClient = this.contracts.getWalletClient();
+      const actorSig = await generateActorSignature({ action: opts.action, metadata }, walletClient);
       const platformSig = generatePlatformSignature({ action: opts.action, metadata });
 
       const proof = {
@@ -472,8 +473,9 @@ export class IntentProtocol {
       }
 
       if (intent.completedAt > 0n) {
-        const actorSig = generateActorSignature({ action: result.action }, intent.requester);
+        // For completed intents, reconstruct commitment hashes (we may not be the original actor)
         const platformSig = generatePlatformSignature({ action: result.action });
+        const actorSig = platformSig; // Commitment placeholder — original actor signature is on-chain
 
         result.proof = {
           proofHash: intent.resultHash,

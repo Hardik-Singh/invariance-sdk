@@ -116,7 +116,8 @@ export class EventLedger {
       const metadataHash = hashMetadata(metadata);
 
       // Generate dual signatures
-      const actorSig = generateActorSignature({ action: event.action, metadata }, event.actor.address);
+      const walletClient = this.contracts.getWalletClient();
+      const actorSig = await generateActorSignature({ action: event.action, metadata }, walletClient);
       const platformSig = generatePlatformSignature({ action: event.action, metadata });
 
       // Prepare LogInput
@@ -196,6 +197,7 @@ export class EventLedger {
 
       // Prepare all log inputs
       const logInputs: OnChainLogInput[] = [];
+      const walletClient = this.contracts.getWalletClient();
 
       for (const event of events) {
         const resolveFn = identityContract.read['resolve'];
@@ -204,7 +206,7 @@ export class EventLedger {
 
         const metadata = event.metadata ?? {};
         const metadataHash = hashMetadata(metadata);
-        const actorSig = generateActorSignature({ action: event.action, metadata }, event.actor.address);
+        const actorSig = await generateActorSignature({ action: event.action, metadata }, walletClient);
         const platformSig = generatePlatformSignature({ action: event.action, metadata });
 
         logInputs.push({
