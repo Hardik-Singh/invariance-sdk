@@ -29,7 +29,11 @@ function createMockSigner(address = '0x1111111111111111111111111111111111111111'
   };
 }
 
-describe('x402 Integration — real @x402/core + @x402/evm', () => {
+// Skip X402 integration tests in CI environments without Web Crypto API
+const hasCryptoAPI = typeof globalThis !== 'undefined' &&
+                     globalThis.crypto?.subtle !== undefined;
+
+describe.skipIf(!hasCryptoAPI)('x402 Integration — real @x402/core + @x402/evm', () => {
   describe('x402Client + ExactEvmScheme wiring', () => {
     it('registers ExactEvmScheme on a real x402Client without errors', () => {
       const signer = createMockSigner();
