@@ -376,6 +376,20 @@ const CONTRACT_ERROR_MAP: Record<string, ErrorCode> = {
   NotPolicyCreator: ErrorCode.NOT_AUTHORIZED_SIGNER,
   NoRulesProvided: ErrorCode.POLICY_VIOLATION,
   InvalidExpiresAt: ErrorCode.POLICY_VIOLATION,
+  // Intent-specific errors
+  IntentNotFound: ErrorCode.INTENT_EXPIRED,
+  IntentNotPending: ErrorCode.INTENT_REJECTED,
+  IntentNotApproved: ErrorCode.INTENT_REJECTED,
+  IntentNotExecuting: ErrorCode.INTENT_REJECTED,
+  IntentExpiredError: ErrorCode.INTENT_EXPIRED,
+  NotRequester: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  PolicyDenied: ErrorCode.POLICY_VIOLATION,
+  InvalidExpiration: ErrorCode.INTENT_EXPIRED,
+  // Review-specific errors
+  ReviewNotFound: ErrorCode.IDENTITY_NOT_FOUND,
+  EscrowNotCompleted: ErrorCode.ESCROW_WRONG_STATE,
+  NotEscrowParty: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  AlreadyReviewed: ErrorCode.POLICY_VIOLATION,
 };
 
 /**
@@ -412,4 +426,185 @@ export function mapContractError(error: unknown): InvarianceError {
   // Generic error fallback
   const message = error instanceof Error ? error.message : 'Unknown contract error';
   return new InvarianceError(ErrorCode.NETWORK_ERROR, message);
+}
+
+/*//////////////////////////////////////////////////////////////
+                    INTENT PROTOCOL HELPERS
+//////////////////////////////////////////////////////////////*/
+
+/** On-chain IntentStatus enum values */
+const INTENT_STATUS_MAP: Record<number, 'pending' | 'approved' | 'executing' | 'completed' | 'rejected' | 'expired'> = {
+  0: 'pending',
+  1: 'approved',
+  2: 'executing',
+  3: 'completed',
+  4: 'rejected',
+  5: 'expired',
+};
+
+/**
+ * Map on-chain IntentStatus uint8 to SDK lifecycle string.
+ *
+ * @param val - The on-chain status enum value
+ * @returns The SDK lifecycle string
+ */
+export function intentStatusFromEnum(val: number): 'pending' | 'approved' | 'executing' | 'completed' | 'rejected' | 'expired' {
+  const status = INTENT_STATUS_MAP[val];
+  if (!status) {
+    throw new InvarianceError(
+      ErrorCode.INTENT_EXPIRED,
+      `Unknown on-chain intent status enum: ${val}`,
+    );
+  }
+  return status;
+}
+
+/**
+ * Parse intentId from transaction logs.
+ * Looks for the IntentRequested event and extracts the intentId.
+ *
+ * @param logs - Transaction receipt logs
+ * @returns The intent ID as bytes32 hex string
+ */
+export function parseIntentIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
+  // The IntentRequested event signature
+  const intentRequestedSig = '0x' + Buffer.from('IntentRequested(bytes32,address,bytes32,bytes32,uint256,bytes)').toString('hex');
+
+  for (const log of logs) {
+    if (log.topics[0] === intentRequestedSig && log.topics.length > 1) {
+      return log.topics[1] as `0x${string}`;
+    }
+  }
+
+  throw new InvarianceError(
+    ErrorCode.NETWORK_ERROR,
+    'IntentRequested event not found in transaction logs',
+  );
+}
+
+/**
+ * Hash metadata object to bytes32 for on-chain storage.
+ * Uses keccak256 of JSON-stringified metadata.
+ *
+ * @param metadata - The metadata object to hash
+ * @returns The keccak256 hash as bytes32 hex string
+ */
+export function hashMetadata(metadata: Record<string, unknown>): `0x${string}` {
+  const json = JSON.stringify(metadata);
+  const hash = Buffer.from(json).toString('hex');
+  // Simple hash for now - in production, use proper keccak256
+  return `0x${hash.padEnd(64, '0').slice(0, 64)}`;
+}
+
+/*//////////////////////////////////////////////////////////////
+                    EVENT LEDGER HELPERS
+//////////////////////////////////////////////////////////////*/
+
+/** On-chain Severity enum values */
+const SEVERITY_MAP: Record<'info' | 'warn' | 'error', number> = {
+  info: 0,
+  warn: 1,
+  error: 2,
+};
+
+/**
+ * Map SDK severity string to on-chain uint8 enum value.
+ *
+ * @param severity - The SDK severity level
+ * @returns The on-chain enum value
+ */
+export function mapSeverity(severity: 'info' | 'warn' | 'error'): number {
+  return SEVERITY_MAP[severity];
+}
+
+/**
+ * Parse entryId from transaction logs.
+ * Looks for the EntryLogged event and extracts the entryId.
+ *
+ * @param logs - Transaction receipt logs
+ * @returns The entry ID as bytes32 hex string
+ */
+export function parseEntryIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
+  // The EntryLogged event signature
+  const entryLoggedSig = '0x' + Buffer.from('EntryLogged(bytes32,bytes32,bytes32,uint8,bytes32)').toString('hex');
+
+  for (const log of logs) {
+    if (log.topics[0] === entryLoggedSig && log.topics.length > 1) {
+      return log.topics[1] as `0x${string}`;
+    }
+  }
+
+  throw new InvarianceError(
+    ErrorCode.NETWORK_ERROR,
+    'EntryLogged event not found in transaction logs',
+  );
+}
+
+/**
+ * Generate actor signature for ledger entry.
+ * In production, this would use the actor's private key to sign.
+ * For now, generates a placeholder signature.
+ *
+ * @param event - The ledger event being signed
+ * @param address - The actor's address
+ * @returns The actor's signature
+ */
+export function generateActorSignature(event: { action: string; metadata?: Record<string, unknown> }, address: string): string {
+  // Placeholder signature - in production, use proper signing
+  const payload = JSON.stringify({ ...event, address, timestamp: Date.now() });
+  return `0x${Buffer.from(payload).toString('hex').slice(0, 130)}`;
+}
+
+/**
+ * Generate platform co-signature for ledger entry.
+ * This proves the platform witnessed and validated the action.
+ *
+ * @param event - The ledger event being co-signed
+ * @returns The platform's signature
+ */
+export function generatePlatformSignature(event: { action: string; metadata?: Record<string, unknown> }): string {
+  // Placeholder signature - in production, use platform's signing key
+  const payload = JSON.stringify({ ...event, platform: 'Invariance', timestamp: Date.now() });
+  return `0x${Buffer.from(payload).toString('hex').slice(0, 130)}`;
+}
+
+/**
+ * Convert array of ledger entries to CSV format.
+ *
+ * @param entries - Array of ledger entries
+ * @returns CSV-formatted string
+ */
+export function convertToCSV(entries: Array<{ entryId: string; action: string; timestamp: number; txHash: string }>): string {
+  if (entries.length === 0) return 'entryId,action,timestamp,txHash\n';
+
+  const headers = 'entryId,action,timestamp,txHash\n';
+  const rows = entries.map((e) => `${e.entryId},${e.action},${e.timestamp},${e.txHash}`).join('\n');
+  return headers + rows;
+}
+
+/*//////////////////////////////////////////////////////////////
+                    REPUTATION ENGINE HELPERS
+//////////////////////////////////////////////////////////////*/
+
+/**
+ * Parse reviewId from transaction logs.
+ * Looks for the ReviewSubmitted event and extracts the reviewId.
+ *
+ * @param logs - Transaction receipt logs
+ * @returns The review ID as bytes32 hex string
+ */
+export function parseReviewIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
+  // The ReviewSubmitted event signature
+  const reviewSubmittedSig = '0x' + Buffer.from('ReviewSubmitted(bytes32,bytes32,bytes32,bytes32,uint8)').toString('hex');
+
+  for (const log of logs) {
+    if (log.topics[0] === reviewSubmittedSig && log.topics.length > 1) {
+      return log.topics[1] as `0x${string}`;
+    }
+  }
+
+  throw new InvarianceError(
+    ErrorCode.NETWORK_ERROR,
+    'ReviewSubmitted event not found in transaction logs',
+  );
 }

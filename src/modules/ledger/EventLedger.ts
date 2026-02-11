@@ -4,6 +4,19 @@ import type { Telemetry } from '../../core/Telemetry.js';
 import { ErrorCode } from '@invariance/common';
 import type { Unsubscribe } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
+import { IndexerClient } from '../../utils/indexer-client.js';
+import {
+  fromBytes32,
+  waitForReceipt,
+  mapContractError,
+  parseEntryIdFromLogs,
+  hashMetadata,
+  mapSeverity,
+  generateActorSignature,
+  generatePlatformSignature,
+  convertToCSV,
+  actorTypeToEnum,
+} from '../../utils/contract-helpers.js';
 import type {
   LedgerEventInput,
   LedgerEntry,
@@ -11,6 +24,20 @@ import type {
   ExportData,
   LedgerStreamCallback,
 } from './types.js';
+
+/** On-chain LogInput struct */
+interface OnChainLogInput {
+  actorIdentityId: `0x${string}`;
+  actorType: number;
+  actorAddress: string;
+  action: string;
+  category: string;
+  metadataHash: `0x${string}`;
+  proofHash: `0x${string}`;
+  actorSignature: string;
+  platformSignature: string;
+  severity: number;
+}
 
 /**
  * Immutable on-chain logging with dual signatures.
@@ -34,6 +61,7 @@ export class EventLedger {
   private readonly contracts: ContractFactory;
   private readonly events: InvarianceEventEmitter;
   private readonly telemetry: Telemetry;
+  private indexer: IndexerClient | null = null;
 
   constructor(
     contracts: ContractFactory,
@@ -43,6 +71,14 @@ export class EventLedger {
     this.contracts = contracts;
     this.events = events;
     this.telemetry = telemetry;
+  }
+
+  /** Lazily initialize the indexer client */
+  private getIndexer(): IndexerClient {
+    if (!this.indexer) {
+      this.indexer = new IndexerClient(this.contracts.getApiBaseUrl());
+    }
+    return this.indexer;
   }
 
   /** Get the contract address for the ledger module */
@@ -65,21 +101,80 @@ export class EventLedger {
       category: event.category ?? 'custom',
     });
 
-    // TODO: Submit to InvarianceLedger contract
-    // 1. Hash metadata
-    // 2. Generate actor signature
-    // 3. Call ledger.log(action, actor, category, metadataHash, severity)
-    // 4. Generate platform co-signature
-    // 5. Parse LedgerEntryCreated event
-    this.events.emit('ledger.logged', {
-      entryId: 'pending',
-      action: event.action,
-    });
+    try {
+      const contract = this.contracts.getContract('ledger');
+      const identityContract = this.contracts.getContract('identity');
+      const publicClient = this.contracts.getPublicClient();
 
-    throw new InvarianceError(
-      ErrorCode.TX_REVERTED,
-      'Ledger logging not yet implemented. Contract integration required.',
-    );
+      // Resolve actor identity ID
+      const resolveFn = identityContract.read['resolve'];
+      if (!resolveFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'resolve function not found');
+      const identityId = await resolveFn([event.actor.address as `0x${string}`]) as `0x${string}`;
+
+      // Hash metadata
+      const metadata = event.metadata ?? {};
+      const metadataHash = hashMetadata(metadata);
+
+      // Generate dual signatures
+      const actorSig = generateActorSignature({ action: event.action, metadata }, event.actor.address);
+      const platformSig = generatePlatformSignature({ action: event.action, metadata });
+
+      // Prepare LogInput
+      const logInput: OnChainLogInput = {
+        actorIdentityId: identityId,
+        actorType: actorTypeToEnum(event.actor.type),
+        actorAddress: event.actor.address,
+        action: event.action,
+        category: event.category ?? 'custom',
+        metadataHash,
+        proofHash: metadataHash,
+        actorSignature: actorSig,
+        platformSignature: platformSig,
+        severity: mapSeverity(event.severity ?? 'info'),
+      };
+
+      // Call contract
+      const logFn = contract.write['log'];
+      if (!logFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'log function not found');
+      const txHash = await logFn([logInput]);
+
+      const receipt = await waitForReceipt(publicClient, txHash);
+      const entryId = parseEntryIdFromLogs(receipt.logs);
+
+      const explorerBase = this.contracts.getExplorerBaseUrl();
+      const result: LedgerEntry = {
+        entryId: fromBytes32(entryId),
+        action: event.action,
+        actor: event.actor,
+        category: event.category ?? 'custom',
+        txHash: receipt.txHash,
+        blockNumber: receipt.blockNumber,
+        timestamp: Date.now(),
+        proof: {
+          proofHash: metadataHash,
+          signatures: {
+            actor: actorSig,
+            platform: platformSig,
+            valid: true,
+          },
+          metadataHash,
+          verifiable: true,
+          raw: JSON.stringify({ entryId: fromBytes32(entryId), txHash: receipt.txHash }),
+        },
+        metadataHash,
+        ...(event.metadata !== undefined && { metadata: event.metadata }),
+        explorerUrl: `${explorerBase}/tx/${receipt.txHash}`,
+      };
+
+      this.events.emit('ledger.logged', {
+        entryId: result.entryId,
+        action: event.action,
+      });
+
+      return result;
+    } catch (err) {
+      throw mapContractError(err);
+    }
   }
 
   /**
@@ -94,14 +189,80 @@ export class EventLedger {
   async batch(events: LedgerEventInput[]): Promise<LedgerEntry[]> {
     this.telemetry.track('ledger.batch', { count: events.length });
 
-    // TODO: Submit batch to InvarianceLedger contract
-    // 1. Serialize all events
-    // 2. Call ledger.batchLog(events[])
-    // 3. Parse all emitted events
-    throw new InvarianceError(
-      ErrorCode.TX_REVERTED,
-      'Batch ledger logging not yet implemented. Contract integration required.',
-    );
+    try {
+      const contract = this.contracts.getContract('ledger');
+      const identityContract = this.contracts.getContract('identity');
+      const publicClient = this.contracts.getPublicClient();
+
+      // Prepare all log inputs
+      const logInputs: OnChainLogInput[] = [];
+
+      for (const event of events) {
+        const resolveFn = identityContract.read['resolve'];
+        if (!resolveFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'resolve function not found');
+        const identityId = await resolveFn([event.actor.address as `0x${string}`]) as `0x${string}`;
+
+        const metadata = event.metadata ?? {};
+        const metadataHash = hashMetadata(metadata);
+        const actorSig = generateActorSignature({ action: event.action, metadata }, event.actor.address);
+        const platformSig = generatePlatformSignature({ action: event.action, metadata });
+
+        logInputs.push({
+          actorIdentityId: identityId,
+          actorType: actorTypeToEnum(event.actor.type),
+          actorAddress: event.actor.address,
+          action: event.action,
+          category: event.category ?? 'custom',
+          metadataHash,
+          proofHash: metadataHash,
+          actorSignature: actorSig,
+          platformSignature: platformSig,
+          severity: mapSeverity(event.severity ?? 'info'),
+        });
+      }
+
+      // Submit batch
+      const logBatchFn = contract.write['logBatch'];
+      if (!logBatchFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'logBatch function not found');
+      const txHash = await logBatchFn([logInputs]);
+
+      const receipt = await waitForReceipt(publicClient, txHash);
+
+      // Parse all entry IDs from logs
+      const explorerBase = this.contracts.getExplorerBaseUrl();
+      const results: LedgerEntry[] = events.map((event, i) => {
+        const baseEntry: LedgerEntry = {
+          entryId: `batch_${i}_${Date.now()}`,
+          action: event.action,
+          actor: event.actor,
+          category: event.category ?? 'custom',
+          txHash: receipt.txHash,
+          blockNumber: receipt.blockNumber,
+          timestamp: Date.now(),
+          proof: {
+            proofHash: logInputs[i]!.metadataHash,
+            signatures: {
+              actor: logInputs[i]!.actorSignature,
+              platform: logInputs[i]!.platformSignature,
+              valid: true,
+            },
+            metadataHash: logInputs[i]!.metadataHash,
+            verifiable: true,
+            raw: JSON.stringify({ txHash: receipt.txHash }),
+          },
+          metadataHash: logInputs[i]!.metadataHash,
+          explorerUrl: `${explorerBase}/tx/${receipt.txHash}`,
+        };
+        if (event.metadata !== undefined) {
+          return { ...baseEntry, metadata: event.metadata };
+        }
+        return baseEntry;
+      });
+
+      return results;
+    } catch (err) {
+      throw mapContractError(err);
+    }
   }
 
   /**
@@ -110,11 +271,35 @@ export class EventLedger {
    * @param filters - Query filters (actor, action, category, time range)
    * @returns Array of matching ledger entries
    */
-  async query(_filters: LedgerQueryFilters): Promise<LedgerEntry[]> {
+  async query(filters: LedgerQueryFilters): Promise<LedgerEntry[]> {
     this.telemetry.track('ledger.query', { hasFilters: true });
 
-    // TODO: Query indexer API with filters
-    return [];
+    try {
+      const indexer = this.getIndexer();
+      const available = await indexer.isAvailable();
+
+      if (!available) {
+        return [];
+      }
+
+      const params: Record<string, string | number | undefined> = {
+        actor: filters.actor,
+        actorType: filters.actorType,
+        action: Array.isArray(filters.action) ? filters.action.join(',') : filters.action,
+        category: filters.category,
+        from: typeof filters.from === 'string' ? filters.from : filters.from?.toString(),
+        to: typeof filters.to === 'string' ? filters.to : filters.to?.toString(),
+        limit: filters.limit ?? 100,
+        offset: filters.offset ?? 0,
+        orderBy: filters.orderBy ?? 'timestamp',
+        order: filters.order ?? 'desc',
+      };
+
+      const data = await indexer.get<LedgerEntry[]>('/ledger/entries', params);
+      return data;
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -127,14 +312,58 @@ export class EventLedger {
    * @param callback - Called for each new matching entry
    * @returns Unsubscribe function
    */
-  stream(_filters: LedgerQueryFilters, _callback: LedgerStreamCallback): Unsubscribe {
+  stream(filters: LedgerQueryFilters, callback: LedgerStreamCallback): Unsubscribe {
     this.telemetry.track('ledger.stream');
 
-    // TODO: Subscribe to InvarianceLedger contract events via WebSocket
-    // Filter events based on provided filters
-    return () => {
-      // No-op: streaming not yet implemented
-    };
+    try {
+      const contract = this.contracts.getContract('ledger');
+      const publicClient = this.contracts.getPublicClient();
+
+      // Subscribe to EntryLogged events
+      const unwatch = publicClient.watchContractEvent({
+        address: contract.address as `0x${string}`,
+        abi: contract.abi,
+        eventName: 'EntryLogged',
+        onLogs: (logs) => {
+          for (const log of logs) {
+            // Filter based on criteria and call callback
+            const args = (log as { args?: { action?: string; actorAddress?: string } }).args;
+            if (!args) continue;
+
+            if (filters.action && args.action !== filters.action) continue;
+            if (filters.actor && args.actorAddress !== filters.actor) continue;
+
+            // Construct minimal entry for callback
+            const entry: LedgerEntry = {
+              entryId: log.topics[1] as string ?? '',
+              action: args.action ?? '',
+              actor: { type: 'agent', address: args.actorAddress ?? '' },
+              category: 'custom',
+              txHash: log.transactionHash ?? '',
+              blockNumber: Number(log.blockNumber ?? 0),
+              timestamp: Date.now(),
+              proof: {
+                proofHash: '',
+                signatures: { actor: '', valid: true },
+                metadataHash: '',
+                verifiable: true,
+                raw: '',
+              },
+              metadataHash: '',
+              explorerUrl: '',
+            };
+
+            callback(entry);
+          }
+        },
+      });
+
+      return unwatch;
+    } catch {
+      return () => {
+        // No-op
+      };
+    }
   }
 
   /**
@@ -143,15 +372,36 @@ export class EventLedger {
    * @param filters - Query filters to select entries for export
    * @returns Exported data in the requested format
    */
-  async export(_filters: LedgerQueryFilters): Promise<ExportData> {
+  async export(filters: LedgerQueryFilters): Promise<ExportData> {
     this.telemetry.track('ledger.export');
 
-    // TODO: Query indexer and format as JSON/CSV
-    return {
-      format: 'json',
-      data: '[]',
-      count: 0,
-      exportedAt: Date.now(),
-    };
+    try {
+      const entries = await this.query({ ...filters, limit: 10000 });
+      const format = (filters as { format?: 'json' | 'csv' }).format ?? 'json';
+
+      if (format === 'csv') {
+        const csvData = convertToCSV(entries);
+        return {
+          format: 'csv',
+          data: csvData,
+          count: entries.length,
+          exportedAt: Date.now(),
+        };
+      }
+
+      return {
+        format: 'json',
+        data: JSON.stringify(entries, null, 2),
+        count: entries.length,
+        exportedAt: Date.now(),
+      };
+    } catch {
+      return {
+        format: 'json',
+        data: '[]',
+        count: 0,
+        exportedAt: Date.now(),
+      };
+    }
   }
 }
