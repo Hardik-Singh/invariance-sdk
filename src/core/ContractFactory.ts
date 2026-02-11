@@ -230,4 +230,13 @@ export class ContractFactory {
       ? 'https://api.useinvariance.com'
       : 'https://api-sepolia.useinvariance.com';
   }
+
+  /** Get the wallet address from the wallet client */
+  getWalletAddress(): string {
+    const walletClient = this.getWalletClient();
+    if (!walletClient.account) {
+      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'No account found in wallet client');
+    }
+    return walletClient.account.address;
+  }
 }

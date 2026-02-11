@@ -37,3 +37,20 @@ export interface ReleaseOptions {
   /** Optional linked intent ID for automatic release verification */
   intentId?: string;
 }
+
+/** On-chain escrow tuple from InvarianceEscrow.sol */
+export interface OnChainEscrow {
+  escrowId: `0x${string}`;
+  depositorIdentityId: `0x${string}`;
+  beneficiaryIdentityId: `0x${string}`;
+  depositor: `0x${string}`;
+  beneficiary: `0x${string}`;
+  amount: bigint;
+  fundedAmount: bigint;
+  conditionType: number;
+  conditionData: `0x${string}`;
+  state: number;
+  createdAt: bigint;
+  expiresAt: bigint;
+  releasedAt: bigint;
+}

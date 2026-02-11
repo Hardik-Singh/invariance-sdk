@@ -156,6 +156,188 @@ export async function waitForReceipt(
   return result;
 }
 
+/** On-chain PolicyState enum values */
+const POLICY_STATE_MAP: Record<number, 'active' | 'revoked' | 'expired'> = {
+  0: 'active',
+  1: 'revoked',
+  2: 'expired',
+};
+
+/** On-chain PolicyRuleType enum values */
+const POLICY_RULE_TYPE_MAP: Record<string, number> = {
+  'max-spend': 0,
+  'max-per-tx': 1,
+  'daily-limit': 2,
+  'action-whitelist': 3,
+  'action-blacklist': 4,
+  'target-whitelist': 5,
+  'target-blacklist': 6,
+  'time-window': 7,
+  'cooldown': 8,
+  'rate-limit': 9,
+  'require-state': 10,
+  'require-balance': 11,
+  'require-approval': 12,
+  'require-attestation': 13,
+  'custom': 14,
+};
+
+const REVERSE_POLICY_RULE_TYPE_MAP: Record<number, string> = {
+  0: 'max-spend',
+  1: 'max-per-tx',
+  2: 'daily-limit',
+  3: 'action-whitelist',
+  4: 'action-blacklist',
+  5: 'target-whitelist',
+  6: 'target-blacklist',
+  7: 'time-window',
+  8: 'cooldown',
+  9: 'rate-limit',
+  10: 'require-state',
+  11: 'require-balance',
+  12: 'require-approval',
+  13: 'require-attestation',
+  14: 'custom',
+};
+
+/**
+ * Map SDK policy rule type string to on-chain uint8 enum value.
+ *
+ * @param type - The SDK policy rule type
+ * @returns The on-chain enum value
+ */
+export function policyRuleTypeToEnum(type: string): number {
+  const val = POLICY_RULE_TYPE_MAP[type];
+  if (val === undefined) {
+    throw new InvarianceError(
+      ErrorCode.POLICY_VIOLATION,
+      `Unknown policy rule type: ${type}`,
+    );
+  }
+  return val;
+}
+
+/**
+ * Map on-chain uint8 enum value to SDK policy rule type string.
+ *
+ * @param val - The on-chain enum value
+ * @returns The SDK policy rule type
+ */
+export function enumToPolicyRuleType(val: number): string {
+  const type = REVERSE_POLICY_RULE_TYPE_MAP[val];
+  if (!type) {
+    throw new InvarianceError(
+      ErrorCode.POLICY_VIOLATION,
+      `Unknown on-chain policy rule type enum: ${val}`,
+    );
+  }
+  return type;
+}
+
+/**
+ * Map on-chain PolicyState uint8 to SDK state string.
+ *
+ * @param val - The on-chain state enum value
+ * @returns The SDK state string
+ */
+export function policyStateFromEnum(val: number): 'active' | 'revoked' | 'expired' {
+  const state = POLICY_STATE_MAP[val];
+  if (!state) {
+    throw new InvarianceError(
+      ErrorCode.POLICY_VIOLATION,
+      `Unknown on-chain policy state enum: ${val}`,
+    );
+  }
+  return state;
+}
+
+/**
+ * Map an array of SDK actor types to on-chain uint8 enum values.
+ *
+ * @param types - Array of SDK actor types
+ * @returns Array of on-chain enum values
+ */
+export function mapActorTypesToEnums(types: ActorType[]): number[] {
+  return types.map(actorTypeToEnum);
+}
+
+/** On-chain EscrowState enum values */
+const ESCROW_STATE_MAP: Record<number, 'created' | 'funded' | 'active' | 'released' | 'refunded' | 'disputed' | 'resolved'> = {
+  0: 'created',
+  1: 'funded',
+  2: 'active',
+  3: 'released',
+  4: 'refunded',
+  5: 'disputed',
+  6: 'resolved',
+};
+
+/** On-chain EscrowConditionType enum values */
+const ESCROW_CONDITION_TYPE_MAP: Record<string, number> = {
+  'task-completion': 0,
+  'multi-sig': 1,
+  'intent-verified': 2,
+  'milestone': 3,
+};
+
+const REVERSE_ESCROW_CONDITION_TYPE_MAP: Record<number, 'task-completion' | 'multi-sig' | 'intent-verified' | 'milestone'> = {
+  0: 'task-completion',
+  1: 'multi-sig',
+  2: 'intent-verified',
+  3: 'milestone',
+};
+
+/**
+ * Map SDK escrow condition type string to on-chain uint8 enum value.
+ *
+ * @param type - The SDK escrow condition type
+ * @returns The on-chain enum value
+ */
+export function escrowConditionTypeToEnum(type: 'task-completion' | 'multi-sig' | 'intent-verified' | 'milestone'): number {
+  const val = ESCROW_CONDITION_TYPE_MAP[type];
+  if (val === undefined) {
+    throw new InvarianceError(
+      ErrorCode.ESCROW_WRONG_STATE,
+      `Unknown escrow condition type: ${type}`,
+    );
+  }
+  return val;
+}
+
+/**
+ * Map on-chain uint8 enum value to SDK escrow condition type string.
+ *
+ * @param val - The on-chain enum value
+ * @returns The SDK escrow condition type
+ */
+export function enumToEscrowConditionType(val: number): 'task-completion' | 'multi-sig' | 'intent-verified' | 'milestone' {
+  const type = REVERSE_ESCROW_CONDITION_TYPE_MAP[val];
+  if (!type) {
+    throw new InvarianceError(
+      ErrorCode.ESCROW_WRONG_STATE,
+      `Unknown on-chain escrow condition type enum: ${val}`,
+    );
+  }
+  return type;
+}
+
+/**
+ * Map on-chain EscrowState uint8 to SDK state string.
+ *
+ * @param val - The on-chain state enum value
+ * @returns The SDK state string
+ */
+export function escrowStateFromEnum(val: number): 'created' | 'funded' | 'active' | 'released' | 'refunded' | 'disputed' | 'resolved' {
+  const state = ESCROW_STATE_MAP[val];
+  if (state === undefined) {
+    throw new InvarianceError(
+      ErrorCode.ESCROW_NOT_FOUND,
+      `Unknown on-chain escrow state enum: ${val}`,
+    );
+  }
+  return state;
+}
+
 /** Known contract error names mapped to SDK error codes */
 const CONTRACT_ERROR_MAP: Record<string, ErrorCode> = {
   IdentityNotFound: ErrorCode.IDENTITY_NOT_FOUND,
@@ -169,6 +351,31 @@ const CONTRACT_ERROR_MAP: Record<string, ErrorCode> = {
   AttestationAlreadyRevoked: ErrorCode.IDENTITY_NOT_FOUND,
   NotAttester: ErrorCode.NOT_AUTHORIZED_SIGNER,
   AccessControlUnauthorizedAccount: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  // Escrow-specific errors
+  EscrowNotFound: ErrorCode.ESCROW_NOT_FOUND,
+  InvalidAmount: ErrorCode.ESCROW_WRONG_STATE,
+  InvalidBeneficiary: ErrorCode.ESCROW_WRONG_STATE,
+  NotDepositor: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  NotBeneficiary: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  NotParty: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  InvalidState: ErrorCode.ESCROW_WRONG_STATE,
+  AlreadyFunded: ErrorCode.ESCROW_WRONG_STATE,
+  NotFunded: ErrorCode.ESCROW_WRONG_STATE,
+  AlreadyApproved: ErrorCode.ESCROW_WRONG_STATE,
+  NotSigner: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  ThresholdNotMet: ErrorCode.ESCROW_WRONG_STATE,
+  EscrowExpired: ErrorCode.ESCROW_WRONG_STATE,
+  DisputeAlreadyExists: ErrorCode.ESCROW_WRONG_STATE,
+  DisputeNotFound: ErrorCode.ESCROW_NOT_FOUND,
+  DisputeAlreadyResolved: ErrorCode.ESCROW_WRONG_STATE,
+  // Policy-specific errors
+  PolicyNotFound: ErrorCode.POLICY_VIOLATION,
+  PolicyNotActive: ErrorCode.POLICY_VIOLATION,
+  PolicyAlreadyAttached: ErrorCode.POLICY_VIOLATION,
+  PolicyNotAttached: ErrorCode.POLICY_VIOLATION,
+  NotPolicyCreator: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  NoRulesProvided: ErrorCode.POLICY_VIOLATION,
+  InvalidExpiresAt: ErrorCode.POLICY_VIOLATION,
 };
 
 /**

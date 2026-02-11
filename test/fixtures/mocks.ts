@@ -105,6 +105,8 @@ export function createMockContractFactory(opts?: {
   vi.spyOn(factory, 'getContract').mockReturnValue(mockContract as ReturnType<ContractFactory['getContract']>);
   vi.spyOn(factory, 'getPublicClient').mockReturnValue(mockPublicClient as unknown as ReturnType<ContractFactory['getPublicClient']>);
   vi.spyOn(factory, 'getApiBaseUrl').mockReturnValue('https://api-sepolia.useinvariance.com');
+  vi.spyOn(factory, 'getExplorerBaseUrl').mockReturnValue('https://sepolia.basescan.org');
+  vi.spyOn(factory, 'getAddress').mockReturnValue('0x1234567890abcdef1234567890abcdef12345678');
 
-  return { factory, mockContract, mockPublicClient };
+  return factory;
 }

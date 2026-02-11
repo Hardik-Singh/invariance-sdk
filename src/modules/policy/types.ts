@@ -38,3 +38,20 @@ export type PolicyViolationCallback = (violation: {
   detail: string;
   timestamp: number;
 }) => void;
+
+/** On-chain representation of a policy (matches Solidity struct) */
+export interface OnChainPolicy {
+  policyId: `0x${string}`;
+  name: string;
+  creator: `0x${string}`;
+  applicableActorTypes: readonly number[];
+  state: number;
+  createdAt: bigint;
+  expiresAt: bigint;
+}
+
+/** On-chain representation of a policy rule (matches Solidity struct) */
+export interface OnChainPolicyRule {
+  ruleType: number;
+  config: `0x${string}`;
+}
