@@ -91,6 +91,10 @@ export function createMockPublicClient(overrides?: {
 /**
  * Create a mock ContractFactory that returns mock contract and client instances.
  * This bypasses the real viem client initialization.
+ *
+ * **Returns the factory directly** — not an object with named fields.
+ * If you need the underlying mock contract/client references alongside the factory,
+ * use {@link createMockSetup} instead.
  */
 export function createMockContractFactory(opts?: {
   contract?: ReturnType<typeof createMockContract>;
@@ -109,4 +113,19 @@ export function createMockContractFactory(opts?: {
   vi.spyOn(factory, 'getAddress').mockReturnValue('0x1234567890abcdef1234567890abcdef12345678');
 
   return factory;
+}
+
+/**
+ * Convenience wrapper that returns the mock factory **and** the underlying
+ * mock contract / publicClient references. Use this in test `beforeEach`
+ * blocks where you need to stub individual read/write methods.
+ */
+export function createMockSetup(opts?: {
+  contract?: ReturnType<typeof createMockContract>;
+  publicClient?: ReturnType<typeof createMockPublicClient>;
+}) {
+  const mockContract = opts?.contract ?? createMockContract();
+  const mockPublicClient = opts?.publicClient ?? createMockPublicClient();
+  const factory = createMockContractFactory({ contract: mockContract, publicClient: mockPublicClient });
+  return { factory, mockContract, mockPublicClient };
 }

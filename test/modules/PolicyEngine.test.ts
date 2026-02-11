@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ErrorCode } from '@invariance/common';
 import { PolicyEngine } from '../../src/modules/policy/PolicyEngine.js';
 import { InvarianceError } from '../../src/errors/InvarianceError.js';
@@ -25,6 +25,11 @@ describe('PolicyEngine', () => {
   beforeEach(() => {
     events = createEventEmitter();
     telemetry = createTelemetry();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe('getContractAddress()', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ErrorCode } from '@invariance/common';
 import { IdentityManager } from '../../src/modules/identity/IdentityManager.js';
 import { InvarianceError } from '../../src/errors/InvarianceError.js';
@@ -55,13 +55,17 @@ describe('IdentityManager', () => {
   let identity: IdentityManager;
 
   beforeEach(() => {
-    const mocks = createMockContractFactory();
-    factory = mocks.factory;
-    mockContract = mocks.mockContract;
-    mockPublicClient = mocks.mockPublicClient;
+    mockContract = createMockContract();
+    mockPublicClient = createMockPublicClient();
+    factory = createMockContractFactory({ contract: mockContract, publicClient: mockPublicClient });
     events = createEventEmitter();
     telemetry = createTelemetry();
     identity = new IdentityManager(factory, events, telemetry);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe('register()', () => {
@@ -435,8 +439,6 @@ describe('IdentityManager', () => {
 
       const result = await identity.list();
       expect(result).toEqual([]);
-
-      vi.unstubAllGlobals();
     });
 
     it('queries indexer with filters when available', async () => {
@@ -456,8 +458,6 @@ describe('IdentityManager', () => {
 
       const result = await identity.list({ type: 'agent', status: 'active' });
       expect(result).toEqual(mockIdentities);
-
-      vi.unstubAllGlobals();
     });
   });
 

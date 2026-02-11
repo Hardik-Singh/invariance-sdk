@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ErrorCode } from '@invariance/common';
 import { EscrowManager } from '../../src/modules/escrow/EscrowManager.js';
 import { InvarianceError } from '../../src/errors/InvarianceError.js';
@@ -95,6 +95,11 @@ describe('EscrowManager', () => {
     events = createEventEmitter();
     telemetry = createTelemetry();
     escrow = new EscrowManager(factory, events, telemetry);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe('create()', () => {
