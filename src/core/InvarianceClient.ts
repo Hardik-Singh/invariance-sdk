@@ -3,6 +3,7 @@ import { base, baseSepolia } from 'viem/chains';
 import { ContractFactory } from './ContractFactory.js';
 import { InvarianceEventEmitter } from './EventEmitter.js';
 import { Telemetry } from './Telemetry.js';
+import { loadEnvConfig } from './env.js';
 import { IdentityManager } from '../modules/identity/IdentityManager.js';
 import { WalletManager } from '../modules/wallet/WalletManager.js';
 import { IntentProtocol } from '../modules/intent/IntentProtocol.js';
@@ -99,24 +100,33 @@ export class Invariance {
   private _erc8004?: ERC8004Manager;
   private _erc8004Bridge?: InvarianceBridge;
 
-  constructor(config: InvarianceConfig) {
-    this.config = config;
-    this.contracts = new ContractFactory(config);
+  constructor(config?: Partial<InvarianceConfig>) {
+    const envConfig = loadEnvConfig();
+    const merged = { ...envConfig, ...config } as InvarianceConfig;
+
+    if (!merged.chain) {
+      throw new Error(
+        'No chain configured. Set INVARIANCE_CHAIN env var or pass { chain } in config.',
+      );
+    }
+
+    this.config = merged;
+    this.contracts = new ContractFactory(merged);
     this.events = new InvarianceEventEmitter();
-    this.telemetry = new Telemetry(config.telemetry !== false);
+    this.telemetry = new Telemetry(merged.telemetry !== false);
 
     this.telemetry.track('sdk.init', {
-      chain: config.chain,
-      managed: config.apiKey !== undefined,
-      gasStrategy: config.gasStrategy ?? 'standard',
+      chain: merged.chain,
+      managed: merged.apiKey !== undefined,
+      gasStrategy: merged.gasStrategy ?? 'standard',
     });
 
     // Initialize wallet if signer provided
-    if (config.signer !== undefined) {
-      const chain = config.chain === 'base' ? base : baseSepolia;
+    if (merged.signer !== undefined) {
+      const chain = merged.chain === 'base' ? base : baseSepolia;
       const rpcUrl = this.contracts.getRpcUrl();
       this._wallet = new WalletManager(this.contracts, this.telemetry, this.config);
-      this._walletInitPromise = this._wallet.initFromSigner(config.signer, rpcUrl, chain).then(() => {
+      this._walletInitPromise = this._wallet.initFromSigner(merged.signer, rpcUrl, chain).then(() => {
         if (this._wallet!.isConnected()) {
           this.contracts.setClients(this._wallet!.getPublicClient(), this._wallet!.getWalletClient());
         }

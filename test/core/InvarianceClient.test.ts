@@ -35,7 +35,7 @@ describe('Invariance (Client)', () => {
   describe('getConfig()', () => {
     it('returns the provided config', () => {
       const inv = new Invariance(BASE_SEPOLIA_CONFIG);
-      expect(inv.getConfig()).toBe(BASE_SEPOLIA_CONFIG);
+      expect(inv.getConfig()).toStrictEqual(BASE_SEPOLIA_CONFIG);
     });
   });
 

@@ -10,6 +10,25 @@ pnpm add @invariance/sdk
 
 ## Quick Start
 
+### Zero-config (recommended)
+
+Create a `.env` file (see `sdk/.env.example`):
+
+```env
+INVARIANCE_CHAIN=base-sepolia
+INVARIANCE_RPC_URL=https://sepolia.base.org
+INVARIANCE_PRIVATE_KEY=0x...
+```
+
+```typescript
+import { Invariance } from '@invariance/sdk';
+
+// Automatically reads from .env — no args needed
+const inv = new Invariance();
+```
+
+### Explicit config
+
 ```typescript
 import { Invariance } from '@invariance/sdk';
 
