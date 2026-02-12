@@ -230,7 +230,7 @@ export class IntentProtocol {
       const explorerBase = this.contracts.getExplorerBaseUrl();
       const result: IntentResult = {
         intentId: fromBytes32(intentId),
-        status: opts.approval === 'auto' ? 'completed' : 'completed',
+        status: opts.approval === 'auto' ? 'completed' : 'pending',
         actor: opts.actor,
         action: opts.action,
         proof,
@@ -525,8 +525,8 @@ export class IntentProtocol {
 
       const data = await indexer.get<IntentResult[]>('/intents', params);
       return data;
-    } catch {
-      // Gracefully degrade if indexer is unavailable
+    } catch (err) {
+      this.telemetry.track('intent.history.error', { error: String(err) });
       return [];
     }
   }

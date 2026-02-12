@@ -1,7 +1,8 @@
 /**
  * Canonical ERC-8004 registry addresses per chain.
  *
- * Addresses sourced from the official ERC-8004 deployments.
+ * @todo These are pre-deployment placeholder addresses (sequential pattern).
+ * Replace with actual deployed contract addresses after ERC-8004 registry deployment.
  */
 
 import type { ERC8004RegistryAddresses } from './types.js';

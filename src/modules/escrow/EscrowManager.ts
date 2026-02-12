@@ -231,6 +231,11 @@ export class EscrowManager {
    * @returns The deployed escrow contract details
    */
   async create(opts: CreateEscrowOptions): Promise<EscrowContract> {
+    const parsedAmount = parseFloat(opts.amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw new InvarianceError(ErrorCode.ESCROW_WRONG_STATE, `Invalid escrow amount: ${opts.amount}. Must be a positive number.`);
+    }
+
     this.telemetry.track('escrow.create', {
       conditionType: opts.conditions.type,
       autoFund: opts.autoFund ?? false,
@@ -709,8 +714,8 @@ export class EscrowManager {
         };
         const data = await indexer.get<EscrowContract[]>('/escrows', params);
         return data;
-      } catch {
-        // Fall through to on-chain fallback
+      } catch (err) {
+        this.telemetry.track('escrow.list.error', { error: String(err) });
       }
     }
 
@@ -727,7 +732,8 @@ export class EscrowManager {
       // In production, the indexer should always be available.
       void limit;
       return [];
-    } catch {
+    } catch (err) {
+      this.telemetry.track('escrow.list.fallback.error', { error: String(err) });
       return [];
     }
   }
@@ -744,6 +750,8 @@ export class EscrowManager {
 
     const publicClient = this.contracts.getPublicClient();
     const escrowIdBytes = toBytes32(escrowId);
+
+    let lastKnownState: EscrowState = 'created';
 
     const stateMap: Record<string, EscrowState> = {
       EscrowFunded: 'funded',
@@ -768,11 +776,12 @@ export class EscrowManager {
             if (newState) {
               callback({
                 escrowId,
-                previousState: 'created',
+                previousState: lastKnownState,
                 newState,
                 txHash: log.transactionHash ?? '',
                 timestamp: Date.now(),
               });
+              lastKnownState = newState;
             }
           } catch { continue; }
         }

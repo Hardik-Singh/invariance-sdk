@@ -807,10 +807,10 @@ describe('PolicyEngine', () => {
 
       const trackSpy = vi.spyOn(telemetry, 'track');
 
-      await policy.compose(['p1', 'p2', 'p3']);
+      await policy.compose(['p1', 'p2']);
 
       expect(trackSpy).toHaveBeenCalledWith('policy.compose', {
-        count: 3,
+        count: 2,
       });
     });
 

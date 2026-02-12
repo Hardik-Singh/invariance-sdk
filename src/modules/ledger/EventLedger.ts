@@ -230,11 +230,18 @@ export class EventLedger {
 
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      // Parse all entry IDs from logs
+      // Parse real entry IDs from contract logs (BatchLogged/EntryLogged events)
+      const parsedEntryIds: string[] = [];
+      for (const log of receipt.logs) {
+        if (log.topics[1]) {
+          parsedEntryIds.push(fromBytes32(log.topics[1] as `0x${string}`));
+        }
+      }
+
       const explorerBase = this.contracts.getExplorerBaseUrl();
       const results: LedgerEntry[] = events.map((event, i) => {
         const baseEntry: LedgerEntry = {
-          entryId: `batch_${i}_${Date.now()}`,
+          entryId: parsedEntryIds[i] ?? `batch_${i}_${Date.now()}`,
           action: event.action,
           actor: event.actor,
           category: event.category ?? 'custom',
@@ -361,7 +368,8 @@ export class EventLedger {
       });
 
       return unwatch;
-    } catch {
+    } catch (err) {
+      this.telemetry.track('ledger.stream.error', { error: String(err) });
       return () => {
         // No-op
       };

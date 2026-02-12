@@ -46,6 +46,7 @@ export class InvarianceBridge {
 
   /** In-memory cache of linked identities */
   private linkedIdentities: Map<string, LinkedIdentity> = new Map();
+  private static readonly MAX_LINKED_IDENTITIES = 1000;
 
   constructor(
     erc8004: ERC8004Manager,
@@ -105,6 +106,10 @@ export class InvarianceBridge {
     };
 
     // Cache the link
+    if (this.linkedIdentities.size >= InvarianceBridge.MAX_LINKED_IDENTITIES) {
+      const oldest = this.linkedIdentities.keys().next().value;
+      if (oldest !== undefined) this.linkedIdentities.delete(oldest);
+    }
     this.linkedIdentities.set(invarianceIdentityId, linked);
 
     this.events.emit('erc8004.identity.linked', {

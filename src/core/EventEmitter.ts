@@ -72,6 +72,9 @@ export class InvarianceEventEmitter {
 
     return () => {
       set.delete(listener as Listener<unknown>);
+      if (set.size === 0) {
+        this.listeners.delete(key);
+      }
     };
   }
 
@@ -88,6 +91,9 @@ export class InvarianceEventEmitter {
     const set = this.listeners.get(event as string);
     if (set) {
       set.delete(listener as Listener<unknown>);
+      if (set.size === 0) {
+        this.listeners.delete(event as string);
+      }
     }
   }
 

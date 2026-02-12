@@ -578,11 +578,14 @@ export async function generateActorSignature(
 /**
  * Generate platform co-signature for ledger entry.
  * Produces a keccak256 commitment hash of the event.
- * NOTE: In production, this should be replaced with server-side signing
- * using the platform's private key.
+ *
+ * @security WARNING: This is NOT a cryptographic signature. It is a deterministic
+ * keccak256 hash with no private key involved. Anyone who knows the event data
+ * can reproduce this hash. In production, replace with server-side ECDSA signing
+ * using the platform's private key to provide authentic platform attestation.
  *
  * @param event - The ledger event being co-signed
- * @returns The platform's commitment hash
+ * @returns The platform's commitment hash (NOT a real signature)
  */
 export function generatePlatformSignature(event: { action: string; metadata?: Record<string, unknown> }): string {
   const payload = JSON.stringify({ action: event.action, metadata: event.metadata ?? {}, platform: 'Invariance' });

@@ -44,6 +44,7 @@ export class X402Manager {
   private paymentClient: X402PaymentClient | null = null;
   private indexer: IndexerClient | null = null;
   private receipts: Map<string, PaymentReceipt> = new Map();
+  private static readonly MAX_RECEIPTS = 1000;
 
   constructor(
     contracts: ContractFactory,
@@ -133,6 +134,10 @@ export class X402Manager {
       );
 
       // Cache the receipt for later verification
+      if (this.receipts.size >= X402Manager.MAX_RECEIPTS) {
+        const oldest = this.receipts.keys().next().value;
+        if (oldest !== undefined) this.receipts.delete(oldest);
+      }
       this.receipts.set(receipt.paymentId, receipt);
 
       this.events.emit('payment.completed', {

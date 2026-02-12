@@ -271,7 +271,7 @@ export class WalletManager {
     // Lazy-import Privy SDK (optional dependency)
     let PrivyClient: any;
     try {
-      // @ts-expect-error - Optional peer dependency, may not be installed
+      // @ts-ignore - Optional peer dependency, may not be installed
       const privyModule = await import('@privy-io/server-auth');
       PrivyClient = (privyModule as any).PrivyClient;
     } catch {
@@ -330,6 +330,15 @@ export class WalletManager {
   async fund(address: string, opts: FundOptions): Promise<TxReceipt> {
     this.telemetry.track('wallet.fund', { token: opts.token ?? 'USDC' });
     this.requireWallet();
+
+    // Input validation
+    const parsedAmount = parseFloat(opts.amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, `Invalid fund amount: ${opts.amount}. Must be a positive number.`);
+    }
+    if (!address || !address.startsWith('0x') || address.length !== 42) {
+      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, `Invalid recipient address: ${address}`);
+    }
 
     const token = opts.token ?? 'USDC';
     const recipient = address as `0x${string}`;
@@ -396,8 +405,8 @@ export class WalletManager {
         const balance = await balanceOfFn([addr]) as bigint;
         usdcBalance = this.fromUSDCWei(balance);
       }
-    } catch {
-      // If USDC contract unavailable, default to 0
+    } catch (err) {
+      this.telemetry.track('wallet.balance.error', { error: String(err) });
     }
 
     return {

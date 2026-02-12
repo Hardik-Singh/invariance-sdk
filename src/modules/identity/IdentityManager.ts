@@ -123,6 +123,11 @@ export class IdentityManager {
    * @returns The newly created identity
    */
   async register(opts: RegisterIdentityOptions): Promise<Identity> {
+    const validTypes = ['agent', 'human', 'device', 'service'];
+    if (!validTypes.includes(opts.type)) {
+      throw new InvarianceError(ErrorCode.NETWORK_ERROR, `Invalid identity type: ${opts.type}. Must be one of: ${validTypes.join(', ')}`);
+    }
+
     this.telemetry.track('identity.register', { type: opts.type });
 
     try {

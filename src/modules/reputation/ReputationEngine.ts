@@ -215,6 +215,10 @@ export class ReputationEngine {
    * @throws {InvarianceError} With ALREADY_REVIEWED if already reviewed
    */
   async review(opts: SubmitReviewOptions): Promise<Review> {
+    if (opts.rating < 1 || opts.rating > 5 || !Number.isInteger(opts.rating)) {
+      throw new InvarianceError(ErrorCode.NETWORK_ERROR, `Invalid rating: ${opts.rating}. Must be an integer between 1 and 5.`);
+    }
+
     this.telemetry.track('reputation.review', { rating: opts.rating });
 
     try {

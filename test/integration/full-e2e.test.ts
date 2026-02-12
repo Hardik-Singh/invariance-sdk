@@ -633,7 +633,7 @@ describe('Full E2E Integration', () => {
 
       // Execute flow
       await identityMgr.register({ type: 'agent', owner: OWNER_WALLET, label: 'Test' });
-      await policyMgr.create({ name: 'Test', actor: 'agent', rules: [] });
+      await policyMgr.create({ name: 'Test', actor: 'agent', rules: [{ type: 'max-spend', config: { limit: '1000' } }] });
       await policyMgr.attach(POLICY_ID, IDENTITY_ID);
       await intentMgr.request({
         actor: { type: 'agent', address: AGENT_WALLET },
@@ -679,7 +679,7 @@ describe('Full E2E Integration', () => {
 
       // Perform a few operations
       await identityMgr.register({ type: 'agent', owner: OWNER_WALLET, label: 'Test' });
-      await policyMgr.create({ name: 'Test', actor: 'agent', rules: [] });
+      await policyMgr.create({ name: 'Test', actor: 'agent', rules: [{ type: 'max-spend', config: { limit: '1000' } }] });
       await gas.estimate({ action: 'register' });
 
       // Verify telemetry was tracked

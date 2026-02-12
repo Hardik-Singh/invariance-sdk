@@ -196,7 +196,8 @@ export class Verifier {
       // 5. Build VerificationResult
       const explorerBase = this.contracts.getExplorerBaseUrl();
       const result: VerificationResult = {
-        verified: signaturesValid || !entry,
+        verified: signaturesValid && !!entry,
+        // Note: No entry means unverified — the action was never logged on-chain
         txHash: receipt.transactionHash,
         action: entry ? entry.action : fromBytes32(entryId),
         actor: {

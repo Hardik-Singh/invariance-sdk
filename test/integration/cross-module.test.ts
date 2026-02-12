@@ -528,7 +528,7 @@ describe('Cross-Module Integration', () => {
       events.on('policy.created', policyListener);
 
       await identityManager.register({ type: 'agent', owner: TEST_OWNER, label: 'Test' });
-      await policyEngine.create({ name: 'Test', actor: 'agent', rules: [] });
+      await policyEngine.create({ name: 'Test', actor: 'agent', rules: [{ type: 'max-spend', config: { limit: '1000' } }] });
 
       expect(identityListener).toHaveBeenCalledOnce();
       expect(policyListener).toHaveBeenCalledOnce();

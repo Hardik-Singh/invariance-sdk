@@ -142,7 +142,8 @@ describe('Verifier', () => {
 
       const result = await verifier.verify('0xabc123');
 
-      expect(result.verified).toBe(true);
+      // With no ledger entry, verification should fail (entry is required for verified: true)
+      expect(result.verified).toBe(false);
       expect(result.txHash).toBe('0xabc123');
     });
   });

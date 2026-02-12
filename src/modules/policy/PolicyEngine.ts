@@ -130,6 +130,10 @@ export class PolicyEngine {
    * @returns The created policy
    */
   async create(opts: CreatePolicyOptions): Promise<SpecPolicy> {
+    if (!opts.rules || opts.rules.length === 0) {
+      throw new InvarianceError(ErrorCode.POLICY_VIOLATION, 'Policy must have at least one rule.');
+    }
+
     this.telemetry.track('policy.create', { ruleCount: opts.rules.length });
 
     try {
@@ -349,8 +353,8 @@ export class PolicyEngine {
         };
         const data = await indexer.get<SpecPolicy[]>('/policies', params);
         return data;
-      } catch {
-        // Fall through to on-chain fallback
+      } catch (err) {
+        this.telemetry.track('policy.list.error', { error: String(err) });
       }
     }
 
@@ -367,7 +371,8 @@ export class PolicyEngine {
       // In production, the indexer should always be available.
       void limit;
       return [];
-    } catch {
+    } catch (err) {
+      this.telemetry.track('policy.list.fallback.error', { error: String(err) });
       return [];
     }
   }
@@ -521,6 +526,13 @@ export class PolicyEngine {
         throw new InvarianceError(
           ErrorCode.POLICY_VIOLATION,
           'compose() requires at least 2 policy IDs',
+        );
+      }
+
+      if (policyIds.length > 2) {
+        throw new InvarianceError(
+          ErrorCode.POLICY_VIOLATION,
+          `compose() supports exactly 2 policy IDs, got ${policyIds.length}. Chain multiple compose() calls for more.`,
         );
       }
 
