@@ -1,4 +1,5 @@
-import type { ActorType } from '@invariance/common';
+import type { ActorType, ListingCategory } from '@invariance/common';
+import type { PricingModel } from '@invariance/common';
 import type { PublicClient, WalletClient } from 'viem';
 import { keccak256, toHex, decodeEventLog } from 'viem';
 import { ErrorCode } from '@invariance/common';
@@ -6,6 +7,7 @@ import { InvarianceError } from '../errors/InvarianceError.js';
 import { InvarianceIntentAbi } from '../contracts/abis/index.js';
 import { InvarianceLedgerAbi } from '../contracts/abis/index.js';
 import { InvarianceReviewAbi } from '../contracts/abis/index.js';
+import { InvarianceRegistryAbi } from '../contracts/abis/index.js';
 
 /** On-chain ActorType enum values */
 const ACTOR_TYPE_MAP: Record<ActorType, number> = {
@@ -389,6 +391,11 @@ const CONTRACT_ERROR_MAP: Record<string, ErrorCode> = {
   NotRequester: ErrorCode.NOT_AUTHORIZED_SIGNER,
   PolicyDenied: ErrorCode.POLICY_VIOLATION,
   InvalidExpiration: ErrorCode.INVALID_INPUT,
+  // Registry-specific errors
+  ListingNotFound: ErrorCode.INVALID_INPUT,
+  NotListingOwner: ErrorCode.NOT_AUTHORIZED_SIGNER,
+  ListingAlreadyInactive: ErrorCode.INVALID_INPUT,
+  EmptyName: ErrorCode.INVALID_INPUT,
   // Review-specific errors
   ReviewNotFound: ErrorCode.INVALID_INPUT,
   EscrowNotCompleted: ErrorCode.ESCROW_WRONG_STATE,
@@ -636,5 +643,144 @@ export function parseReviewIdFromLogs(logs: readonly { topics: readonly string[]
   throw new InvarianceError(
     ErrorCode.TX_REVERTED,
     'ReviewSubmitted event not found in transaction logs',
+  );
+}
+
+/*//////////////////////////////////////////////////////////////
+                    MARKETPLACE REGISTRY HELPERS
+//////////////////////////////////////////////////////////////*/
+
+/** On-chain ListingCategory enum values */
+const LISTING_CATEGORY_MAP: Record<ListingCategory, number> = {
+  trading: 0,
+  content: 1,
+  analysis: 2,
+  automation: 3,
+  research: 4,
+  creative: 5,
+  development: 6,
+  custom: 7,
+};
+
+const REVERSE_LISTING_CATEGORY_MAP: Record<number, ListingCategory> = {
+  0: 'trading',
+  1: 'content',
+  2: 'analysis',
+  3: 'automation',
+  4: 'research',
+  5: 'creative',
+  6: 'development',
+  7: 'custom',
+};
+
+/** On-chain PricingType enum values */
+const PRICING_TYPE_MAP: Record<PricingModel['type'], number> = {
+  fixed: 0,
+  hourly: 1,
+  'per-task': 2,
+  subscription: 3,
+};
+
+const REVERSE_PRICING_TYPE_MAP: Record<number, PricingModel['type']> = {
+  0: 'fixed',
+  1: 'hourly',
+  2: 'per-task',
+  3: 'subscription',
+};
+
+/**
+ * Map SDK listing category string to on-chain uint8 enum value.
+ *
+ * @param category - The SDK listing category
+ * @returns The on-chain enum value
+ */
+export function listingCategoryToEnum(category: ListingCategory): number {
+  const val = LISTING_CATEGORY_MAP[category];
+  if (val === undefined) {
+    throw new InvarianceError(
+      ErrorCode.INVALID_INPUT,
+      `Unknown listing category: ${category}`,
+    );
+  }
+  return val;
+}
+
+/**
+ * Map on-chain uint8 enum value to SDK listing category string.
+ *
+ * @param val - The on-chain enum value
+ * @returns The SDK listing category
+ */
+export function enumToListingCategory(val: number): ListingCategory {
+  const category = REVERSE_LISTING_CATEGORY_MAP[val];
+  if (!category) {
+    throw new InvarianceError(
+      ErrorCode.INVALID_INPUT,
+      `Unknown on-chain listing category enum: ${val}`,
+    );
+  }
+  return category;
+}
+
+/**
+ * Map SDK pricing type string to on-chain uint8 enum value.
+ *
+ * @param type - The SDK pricing type
+ * @returns The on-chain enum value
+ */
+export function pricingTypeToEnum(type: PricingModel['type']): number {
+  const val = PRICING_TYPE_MAP[type];
+  if (val === undefined) {
+    throw new InvarianceError(
+      ErrorCode.INVALID_INPUT,
+      `Unknown pricing type: ${type}`,
+    );
+  }
+  return val;
+}
+
+/**
+ * Map on-chain uint8 enum value to SDK pricing type string.
+ *
+ * @param val - The on-chain enum value
+ * @returns The SDK pricing type
+ */
+export function enumToPricingType(val: number): PricingModel['type'] {
+  const type = REVERSE_PRICING_TYPE_MAP[val];
+  if (!type) {
+    throw new InvarianceError(
+      ErrorCode.INVALID_INPUT,
+      `Unknown on-chain pricing type enum: ${val}`,
+    );
+  }
+  return type;
+}
+
+/**
+ * Parse listingId from transaction logs.
+ * Looks for the ListingRegistered event and extracts the listingId.
+ *
+ * @param logs - Transaction receipt logs
+ * @returns The listing ID as bytes32 hex string
+ */
+export function parseListingIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: InvarianceRegistryAbi,
+        data: log.data as `0x${string}`,
+        topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+      });
+      if (decoded.eventName === 'ListingRegistered') {
+        return (decoded.args as { listingId: `0x${string}` }).listingId;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  throw new InvarianceError(
+    ErrorCode.TX_REVERTED,
+    'ListingRegistered event not found in transaction logs',
   );
 }

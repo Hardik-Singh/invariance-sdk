@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ErrorCode } from '@invariance/common';
+import { encodeEventTopics, encodeAbiParameters, type Abi } from 'viem';
 import { MarketplaceKit } from '../../src/modules/marketplace/MarketplaceKit.js';
 import { InvarianceError } from '../../src/errors/InvarianceError.js';
+import { InvarianceRegistryAbi } from '../../src/contracts/abis/index.js';
 import {
-  createMockContractFactory,
   createMockContract,
   createMockPublicClient,
+  createMockContractFactory,
   createEventEmitter,
   createTelemetry,
 } from '../fixtures/mocks.js';
@@ -13,29 +15,125 @@ import type { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
 import type { ContractFactory } from '../../src/core/ContractFactory.js';
 
+/** Create a mock ListingRegistered event log */
+function createMockListingRegisteredLog(listingId: `0x${string}`) {
+  const topics = encodeEventTopics({
+    abi: InvarianceRegistryAbi as Abi,
+    eventName: 'ListingRegistered',
+    args: {
+      listingId,
+      ownerIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      owner: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+    },
+  });
+  const data = encodeAbiParameters(
+    [{ type: 'string' }, { type: 'uint8' }],
+    ['ContentGenius Pro', 1],
+  );
+  return { topics: topics as readonly string[], data };
+}
+
+/** Sample on-chain listing tuple */
+function createOnChainListing(overrides?: Partial<{
+  listingId: `0x${string}`;
+  ownerIdentityId: `0x${string}`;
+  owner: `0x${string}`;
+  name: string;
+  description: string;
+  category: number;
+  pricingType: number;
+  price: bigint;
+  metadataUri: string;
+  active: boolean;
+  createdAt: bigint;
+  updatedAt: bigint;
+}>) {
+  return {
+    listingId: '0x' + 'ab'.repeat(32) as `0x${string}`,
+    ownerIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+    owner: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+    name: 'ContentGenius Pro',
+    description: 'AI content writer',
+    category: 1, // content
+    pricingType: 2, // per-task
+    price: 25000000n, // 25 USDC (6 decimals)
+    metadataUri: JSON.stringify({ capabilities: ['blog-posts', 'seo-optimization'] }),
+    active: true,
+    createdAt: 1700000000n,
+    updatedAt: 1700000000n,
+    ...overrides,
+  };
+}
+
 describe('MarketplaceKit', () => {
   let factory: ContractFactory;
   let mockRegistryContract: ReturnType<typeof createMockContract>;
+  let mockEscrowContract: ReturnType<typeof createMockContract>;
+  let mockPolicyContract: ReturnType<typeof createMockContract>;
+  let mockReviewContract: ReturnType<typeof createMockContract>;
   let mockPublicClient: ReturnType<typeof createMockPublicClient>;
   let events: InvarianceEventEmitter;
   let telemetry: Telemetry;
   let marketplace: MarketplaceKit;
 
+  const LISTING_ID = '0x' + 'ab'.repeat(32) as `0x${string}`;
+
   beforeEach(() => {
     mockRegistryContract = createMockContract({
       read: {
-        getListing: vi.fn(),
-        getListingsByCategory: vi.fn(),
+        getListing: vi.fn().mockResolvedValue(createOnChainListing()),
+        getActiveListings: vi.fn().mockResolvedValue([]),
+        getOwnerListings: vi.fn().mockResolvedValue([]),
       },
       write: {
-        registerListing: vi.fn(),
-        updateListing: vi.fn(),
-        deactivateListing: vi.fn(),
+        register: vi.fn().mockResolvedValue('0xtxhash1' as `0x${string}`),
+        update: vi.fn().mockResolvedValue('0xtxhash2' as `0x${string}`),
+        deactivate: vi.fn().mockResolvedValue('0xtxhash3' as `0x${string}`),
       },
     });
 
-    mockPublicClient = createMockPublicClient();
+    mockEscrowContract = createMockContract({
+      write: {
+        create: vi.fn().mockResolvedValue('0xescrowtx' as `0x${string}`),
+        release: vi.fn().mockResolvedValue('0xreleasetx' as `0x${string}`),
+      },
+    });
+
+    mockPolicyContract = createMockContract({
+      write: {
+        create: vi.fn().mockResolvedValue('0xpolicytx' as `0x${string}`),
+      },
+    });
+
+    mockReviewContract = createMockContract({
+      write: {
+        submit: vi.fn().mockResolvedValue('0xreviewtx' as `0x${string}`),
+      },
+    });
+
+    const listingLog = createMockListingRegisteredLog(LISTING_ID);
+    mockPublicClient = createMockPublicClient({
+      receipt: {
+        transactionHash: '0xabc123' as `0x${string}`,
+        blockNumber: 100n,
+        gasUsed: 21000n,
+        status: 'success',
+        logs: [listingLog],
+      },
+    });
+
     factory = createMockContractFactory({ contract: mockRegistryContract, publicClient: mockPublicClient });
+
+    // Override getContract to return different mocks per contract name
+    vi.spyOn(factory, 'getContract').mockImplementation((name: string) => {
+      switch (name) {
+        case 'registry': return mockRegistryContract as ReturnType<ContractFactory['getContract']>;
+        case 'escrow': return mockEscrowContract as ReturnType<ContractFactory['getContract']>;
+        case 'policy': return mockPolicyContract as ReturnType<ContractFactory['getContract']>;
+        case 'review': return mockReviewContract as ReturnType<ContractFactory['getContract']>;
+        default: return mockRegistryContract as ReturnType<ContractFactory['getContract']>;
+      }
+    });
 
     events = createEventEmitter();
     telemetry = createTelemetry();
@@ -48,101 +146,156 @@ describe('MarketplaceKit', () => {
   });
 
   describe('register()', () => {
-    it('throws IDENTITY_NOT_FOUND for not yet implemented functionality', async () => {
-      await expect(
-        marketplace.register({
-          identity: 'identity-1',
-          name: 'ContentGenius Pro',
-          description: 'AI content writer',
-          category: 'content',
-          pricing: { type: 'per-task', amount: '25.00', currency: 'USDC' },
-          capabilities: ['blog-posts', 'seo-optimization'],
-        }),
-      ).rejects.toMatchObject({
-        code: ErrorCode.IDENTITY_NOT_FOUND,
-        message: expect.stringContaining('not yet implemented'),
+    it('registers a listing on-chain and returns the created listing', async () => {
+      const listing = await marketplace.register({
+        identity: 'identity-1',
+        name: 'ContentGenius Pro',
+        description: 'AI content writer',
+        category: 'content',
+        pricing: { type: 'per-task', amount: '25.00', currency: 'USDC' },
+        capabilities: ['blog-posts', 'seo-optimization'],
       });
+
+      expect(listing.name).toBe('ContentGenius Pro');
+      expect(listing.category).toBe('content');
+      expect(listing.active).toBe(true);
+      expect(mockRegistryContract.write['register']).toHaveBeenCalled();
+      expect(mockRegistryContract.read['getListing']).toHaveBeenCalledWith([LISTING_ID]);
     });
 
-    it('emits marketplace.listed event before throwing', async () => {
+    it('emits marketplace.listed event after successful registration', async () => {
       const emitSpy = vi.spyOn(events, 'emit');
 
-      await expect(
-        marketplace.register({
-          identity: 'identity-1',
-          name: 'Test Agent',
-          description: 'Test description',
-          category: 'content',
-          pricing: { type: 'per-task', amount: '10.00', currency: 'USDC' },
-        }),
-      ).rejects.toThrow();
-
-      expect(emitSpy).toHaveBeenCalledWith('marketplace.listed', {
-        listingId: 'pending',
+      await marketplace.register({
+        identity: 'identity-1',
+        name: 'Test Agent',
+        description: 'Test description',
+        category: 'content',
+        pricing: { type: 'per-task', amount: '10.00', currency: 'USDC' },
+        capabilities: [],
       });
+
+      expect(emitSpy).toHaveBeenCalledWith('marketplace.listed', expect.objectContaining({
+        listingId: expect.any(String),
+      }));
     });
 
     it('tracks telemetry with category', async () => {
       const trackSpy = vi.spyOn(telemetry, 'track');
 
-      await expect(
-        marketplace.register({
-          identity: 'identity-1',
-          name: 'Test Agent',
-          description: 'Test',
-          category: 'trading',
-          pricing: { type: 'per-task', amount: '5.00', currency: 'USDC' },
-        }),
-      ).rejects.toThrow();
+      await marketplace.register({
+        identity: 'identity-1',
+        name: 'Test Agent',
+        description: 'Test',
+        category: 'trading',
+        pricing: { type: 'per-task', amount: '5.00', currency: 'USDC' },
+        capabilities: [],
+      });
 
       expect(trackSpy).toHaveBeenCalledWith('marketplace.register', { category: 'trading' });
+    });
+
+    it('throws INVALID_INPUT for empty name', async () => {
+      await expect(
+        marketplace.register({
+          identity: 'id-1',
+          name: '',
+          description: 'Desc',
+          category: 'content',
+          pricing: { type: 'per-task', amount: '10.00', currency: 'USDC' },
+          capabilities: [],
+        }),
+      ).rejects.toMatchObject({
+        code: ErrorCode.INVALID_INPUT,
+        message: expect.stringContaining('empty'),
+      });
+    });
+
+    it('throws INVALID_INPUT for negative price', async () => {
+      await expect(
+        marketplace.register({
+          identity: 'id-1',
+          name: 'Test',
+          description: 'Desc',
+          category: 'content',
+          pricing: { type: 'subscription', amount: '-10.00', currency: 'USDC' },
+          capabilities: [],
+        }),
+      ).rejects.toMatchObject({
+        code: ErrorCode.INVALID_INPUT,
+        message: expect.stringContaining('Invalid price'),
+      });
+    });
+
+    it('passes correct args to the registry contract', async () => {
+      await marketplace.register({
+        identity: 'identity-1',
+        name: 'My Agent',
+        description: 'Does things',
+        category: 'automation',
+        pricing: { type: 'fixed', amount: '100.00', currency: 'USDC' },
+        capabilities: ['task-a'],
+        tags: ['ai'],
+      });
+
+      const registerCall = mockRegistryContract.write['register']!.mock.calls[0]![0];
+      // category: automation = 3, pricingType: fixed = 0
+      expect(registerCall[3]).toBe(3); // category enum
+      expect(registerCall[4]).toBe(0); // pricingType enum
+      expect(registerCall[5]).toBe(100000000n); // 100 USDC in 6 decimals
     });
   });
 
   describe('update()', () => {
-    it('throws IDENTITY_NOT_FOUND for unknown listing', async () => {
-      await expect(
-        marketplace.update('listing-1', {
-          name: 'Updated Name',
-        }),
-      ).rejects.toMatchObject({
-        code: ErrorCode.IDENTITY_NOT_FOUND,
-        message: expect.stringContaining('Listing not found'),
+    it('merges fields and calls contract with correct args', async () => {
+      const listing = await marketplace.update('listing-1', {
+        name: 'Updated Name',
       });
+
+      expect(listing.name).toBe('ContentGenius Pro'); // from mock getListing read-back
+      expect(mockRegistryContract.write['update']).toHaveBeenCalled();
+      const updateArgs = mockRegistryContract.write['update']!.mock.calls[0]![0];
+      expect(updateArgs[1]).toBe('Updated Name');
     });
 
     it('tracks telemetry', async () => {
       const trackSpy = vi.spyOn(telemetry, 'track');
 
-      await expect(
-        marketplace.update('listing-1', { name: 'New Name' }),
-      ).rejects.toThrow();
+      await marketplace.update('listing-1', { name: 'New Name' });
 
       expect(trackSpy).toHaveBeenCalledWith('marketplace.update');
+    });
+
+    it('preserves existing fields when not provided in update', async () => {
+      await marketplace.update('listing-1', { description: 'New desc' });
+
+      const updateArgs = mockRegistryContract.write['update']!.mock.calls[0]![0];
+      expect(updateArgs[1]).toBe('ContentGenius Pro'); // name preserved from existing
+      expect(updateArgs[2]).toBe('New desc'); // description updated
     });
   });
 
   describe('deactivate()', () => {
-    it('throws IDENTITY_NOT_FOUND for unknown listing', async () => {
-      await expect(
-        marketplace.deactivate('listing-1'),
-      ).rejects.toMatchObject({
-        code: ErrorCode.IDENTITY_NOT_FOUND,
-        message: expect.stringContaining('Listing not found'),
-      });
+    it('calls deactivate on contract and returns receipt', async () => {
+      const receipt = await marketplace.deactivate('listing-1');
+
+      expect(receipt.status).toBe('success');
+      expect(receipt.txHash).toBe('0xabc123');
+      expect(mockRegistryContract.write['deactivate']).toHaveBeenCalled();
     });
 
     it('tracks telemetry', async () => {
       const trackSpy = vi.spyOn(telemetry, 'track');
 
-      await expect(marketplace.deactivate('listing-1')).rejects.toThrow();
+      await marketplace.deactivate('listing-1');
 
       expect(trackSpy).toHaveBeenCalledWith('marketplace.deactivate');
     });
   });
 
   describe('search()', () => {
-    it('returns empty results when no listings found', async () => {
+    it('returns empty results when indexer unavailable', async () => {
+      // Indexer unavailable by default (fetch not mocked)
       const result = await marketplace.search({
         category: 'trading',
       });
@@ -193,57 +346,26 @@ describe('MarketplaceKit', () => {
 
       expect(trackSpy).toHaveBeenCalledWith('marketplace.search', { category: undefined });
     });
-
-    it('supports text search query', async () => {
-      const result = await marketplace.search({
-        query: 'trading bot',
-      });
-
-      expect(result.listings).toEqual([]);
-    });
-
-    it('supports price range filter', async () => {
-      const result = await marketplace.search({
-        priceMin: '10.00',
-        priceMax: '100.00',
-      });
-
-      expect(result.listings).toEqual([]);
-    });
-
-    it('supports rating filter', async () => {
-      const result = await marketplace.search({
-        minRating: 4,
-      });
-
-      expect(result.listings).toEqual([]);
-    });
-
-    it('supports capability matching', async () => {
-      const result = await marketplace.search({
-        capabilities: ['swap', 'transfer'],
-      });
-
-      expect(result.listings).toEqual([]);
-    });
-
-    it('supports pagination with limit', async () => {
-      const result = await marketplace.search({
-        page: 2,
-        limit: 20,
-      });
-
-      expect(result.page).toBe(2);
-      expect(result.listings).toEqual([]);
-    });
   });
 
   describe('get()', () => {
-    it('throws IDENTITY_NOT_FOUND for unknown listing', async () => {
+    it('falls back to on-chain when indexer unavailable', async () => {
+      const listing = await marketplace.get('listing-1');
+
+      expect(listing.name).toBe('ContentGenius Pro');
+      expect(listing.category).toBe('content');
+      expect(mockRegistryContract.read['getListing']).toHaveBeenCalled();
+    });
+
+    it('throws when listing not found on-chain (zero owner)', async () => {
+      mockRegistryContract.read['getListing']!.mockResolvedValue(
+        createOnChainListing({ owner: '0x0000000000000000000000000000000000000000' as `0x${string}` }),
+      );
+
       await expect(
         marketplace.get('nonexistent'),
       ).rejects.toMatchObject({
-        code: ErrorCode.IDENTITY_NOT_FOUND,
+        code: ErrorCode.INVALID_INPUT,
         message: expect.stringContaining('Listing not found'),
       });
     });
@@ -251,14 +373,14 @@ describe('MarketplaceKit', () => {
     it('tracks telemetry', async () => {
       const trackSpy = vi.spyOn(telemetry, 'track');
 
-      await expect(marketplace.get('listing-1')).rejects.toThrow();
+      await marketplace.get('listing-1');
 
       expect(trackSpy).toHaveBeenCalledWith('marketplace.get');
     });
   });
 
   describe('featured()', () => {
-    it('returns empty array when no featured listings', async () => {
+    it('returns empty array when indexer unavailable', async () => {
       const result = await marketplace.featured();
 
       expect(result).toEqual([]);
@@ -294,58 +416,130 @@ describe('MarketplaceKit', () => {
   });
 
   describe('hire()', () => {
-    it('throws ESCROW_NOT_FOUND for not yet implemented functionality', async () => {
-      await expect(
-        marketplace.hire({
-          listingId: 'listing-1',
-          task: 'Write blog post',
-          payment: { amount: '25.00', currency: 'USDC' },
-          policy: {
-            capabilities: ['blog-posts'],
-          },
-        }),
-      ).rejects.toMatchObject({
-        code: ErrorCode.ESCROW_NOT_FOUND,
-        message: expect.stringContaining('not yet implemented'),
+    it('creates escrow and returns HireResult', async () => {
+      const result = await marketplace.hire({
+        listingId: 'listing-1',
+        task: { description: 'Write blog post', deadline: '2025-12-31' },
+        payment: { amount: '25.00', type: 'escrow' },
       });
+
+      expect(result.status).toBe('active');
+      expect(result.listing.name).toBe('ContentGenius Pro');
+      expect(mockEscrowContract.write['create']).toHaveBeenCalled();
     });
 
-    it('emits marketplace.hired event before throwing', async () => {
+    it('creates policy when opts.policy provided', async () => {
+      await marketplace.hire({
+        listingId: 'listing-1',
+        task: { description: 'Complex task', deadline: '2025-12-31' },
+        payment: { amount: '100.00', type: 'escrow' },
+        policy: {},
+      });
+
+      expect(mockPolicyContract.write['create']).toHaveBeenCalled();
+    });
+
+    it('does not create policy when opts.policy not provided', async () => {
+      await marketplace.hire({
+        listingId: 'listing-1',
+        task: { description: 'Simple task', deadline: '2025-12-31' },
+        payment: { amount: '10.00', type: 'escrow' },
+      });
+
+      expect(mockPolicyContract.write['create']).not.toHaveBeenCalled();
+    });
+
+    it('emits marketplace.hired event', async () => {
       const emitSpy = vi.spyOn(events, 'emit');
 
-      await expect(
-        marketplace.hire({
-          listingId: 'listing-1',
-          task: 'Test task',
-          payment: { amount: '10.00', currency: 'USDC' },
-        }),
-      ).rejects.toThrow();
-
-      expect(emitSpy).toHaveBeenCalledWith('marketplace.hired', {
-        hireId: 'pending',
+      await marketplace.hire({
         listingId: 'listing-1',
+        task: { description: 'Test task', deadline: '2025-12-31' },
+        payment: { amount: '10.00', type: 'escrow' },
       });
+
+      expect(emitSpy).toHaveBeenCalledWith('marketplace.hired', expect.objectContaining({
+        listingId: 'listing-1',
+      }));
     });
 
     it('tracks telemetry', async () => {
       const trackSpy = vi.spyOn(telemetry, 'track');
 
+      await marketplace.hire({
+        listingId: 'listing-1',
+        task: { description: 'Task', deadline: '2025-12-31' },
+        payment: { amount: '5.00', type: 'escrow' },
+      });
+
+      expect(trackSpy).toHaveBeenCalledWith('marketplace.hire');
+    });
+
+    it('throws when listing is inactive', async () => {
+      mockRegistryContract.read['getListing']!.mockResolvedValue(
+        createOnChainListing({ active: false }),
+      );
+
       await expect(
         marketplace.hire({
           listingId: 'listing-1',
-          task: 'Task',
-          payment: { amount: '5.00', currency: 'USDC' },
+          task: { description: 'Task', deadline: '2025-12-31' },
+          payment: { amount: '10.00', type: 'escrow' },
         }),
-      ).rejects.toThrow();
-
-      expect(trackSpy).toHaveBeenCalledWith('marketplace.hire');
+      ).rejects.toMatchObject({
+        message: expect.stringContaining('not active'),
+      });
     });
   });
 
   describe('complete()', () => {
+    it('releases escrow and returns CompletionResult', async () => {
+      // First hire to create a hire record
+      const hire = await marketplace.hire({
+        listingId: 'listing-1',
+        task: { description: 'Task', deadline: '2025-12-31' },
+        payment: { amount: '10.00', type: 'escrow' },
+      });
+
+      const result = await marketplace.complete(hire.hireId);
+
+      expect(result.escrowReleased).toBe(true);
+      expect(result.hireId).toBe(hire.hireId);
+      expect(mockEscrowContract.write['release']).toHaveBeenCalled();
+    });
+
+    it('submits review when provided', async () => {
+      const hire = await marketplace.hire({
+        listingId: 'listing-1',
+        task: { description: 'Task', deadline: '2025-12-31' },
+        payment: { amount: '10.00', type: 'escrow' },
+      });
+
+      await marketplace.complete(hire.hireId, {
+        review: {
+          rating: 5,
+          comment: 'Excellent work!',
+        },
+      });
+
+      expect(mockReviewContract.write['submit']).toHaveBeenCalled();
+    });
+
+    it('does not submit review when not provided', async () => {
+      const hire = await marketplace.hire({
+        listingId: 'listing-1',
+        task: { description: 'Task', deadline: '2025-12-31' },
+        payment: { amount: '10.00', type: 'escrow' },
+      });
+
+      await marketplace.complete(hire.hireId);
+
+      expect(mockReviewContract.write['submit']).not.toHaveBeenCalled();
+    });
+
     it('throws ESCROW_NOT_FOUND for unknown hire', async () => {
       await expect(
-        marketplace.complete('hire-1'),
+        marketplace.complete('unknown-hire'),
       ).rejects.toMatchObject({
         code: ErrorCode.ESCROW_NOT_FOUND,
         message: expect.stringContaining('Hire not found'),
@@ -374,21 +568,6 @@ describe('MarketplaceKit', () => {
 
       expect(trackSpy).toHaveBeenCalledWith('marketplace.complete', { hasReview: true });
     });
-
-    it('accepts completion with review details', async () => {
-      await expect(
-        marketplace.complete('hire-1', {
-          review: {
-            rating: 4,
-            comment: 'Good job',
-            quality: 5,
-            communication: 4,
-            speed: 3,
-            value: 4,
-          },
-        }),
-      ).rejects.toThrow();
-    });
   });
 
   describe('getContractAddress()', () => {
@@ -399,60 +578,6 @@ describe('MarketplaceKit', () => {
 
       expect(addr).toBe('0xRegistryAddr');
       expect(factory.getAddress).toHaveBeenCalledWith('registry');
-    });
-  });
-
-  describe('error handling', () => {
-    it('handles invalid pricing configuration', async () => {
-      await expect(
-        marketplace.register({
-          identity: 'id-1',
-          name: 'Test',
-          description: 'Desc',
-          category: 'content',
-          pricing: { type: 'subscription', amount: '-10.00', currency: 'USDC' },
-        }),
-      ).rejects.toThrow(InvarianceError);
-    });
-
-    it('handles missing required fields', async () => {
-      await expect(
-        marketplace.register({
-          identity: 'id-1',
-          name: '',
-          description: 'Desc',
-          category: 'content',
-          pricing: { type: 'per-task', amount: '10.00', currency: 'USDC' },
-        }),
-      ).rejects.toThrow(InvarianceError);
-    });
-  });
-
-  describe('compound operations', () => {
-    it('hire creates escrow and policy in single call', async () => {
-      await expect(
-        marketplace.hire({
-          listingId: 'listing-1',
-          task: 'Complex task',
-          payment: { amount: '100.00', currency: 'USDC' },
-          policy: {
-            capabilities: ['swap', 'transfer'],
-            spendingLimit: '50.00',
-            timeWindow: { start: Date.now(), end: Date.now() + 86400000 },
-          },
-        }),
-      ).rejects.toThrow();
-    });
-
-    it('complete releases escrow and submits review', async () => {
-      await expect(
-        marketplace.complete('hire-1', {
-          review: {
-            rating: 5,
-            comment: 'Perfect!',
-          },
-        }),
-      ).rejects.toThrow();
     });
   });
 });
