@@ -17,10 +17,14 @@ import { ERC8004Manager } from '../modules/erc8004/ERC8004Manager.js';
 import { InvarianceBridge } from '../modules/erc8004/InvarianceBridge.js';
 import type { VerificationResult } from '../modules/verify/types.js';
 
+import { createRequire } from 'node:module';
+const _require = createRequire(import.meta.url);
+const _pkg = _require('../../package.json') as { version: string };
+
 /**
- * Current SDK version.
+ * Current SDK version, read from package.json.
  */
-export const SDK_VERSION = '2.0.0';
+export const SDK_VERSION: string = _pkg.version;
 
 /**
  * The callable verify interface.

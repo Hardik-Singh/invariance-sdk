@@ -17,6 +17,7 @@ import {
 } from '../../utils/contract-helpers.js';
 import { InvarianceEscrowAbi } from '../../contracts/abis/index.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
+import { toUSDCWei, fromUSDCWei } from '../../utils/usdc.js';
 import type {
   CreateEscrowOptions,
   EscrowContract,
@@ -33,9 +34,6 @@ import type {
 
 /** Zero bytes32 constant */
 const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000' as const;
-
-/** USDC decimals (6) */
-const USDC_DECIMALS = 6;
 
 /**
  * USDC escrow with multi-sig, conditional release.
@@ -101,32 +99,6 @@ export class EscrowManager {
     const unit = match[2]!;
     const multipliers: Record<string, number> = { h: 3600, d: 86400, w: 604800 };
     return value * (multipliers[unit] ?? 3600);
-  }
-
-  /**
-   * Convert USDC amount from decimal string to wei (6 decimals).
-   *
-   * @param amount - The amount in decimal format (e.g., '250.00')
-   * @returns The amount in USDC wei (6 decimals)
-   */
-  private toUSDCWei(amount: string): bigint {
-    const parts = amount.split('.');
-    const whole = parts[0] ?? '0';
-    const fraction = (parts[1] ?? '').padEnd(USDC_DECIMALS, '0').slice(0, USDC_DECIMALS);
-    return BigInt(whole + fraction);
-  }
-
-  /**
-   * Convert USDC wei to decimal string.
-   *
-   * @param wei - The amount in USDC wei (6 decimals)
-   * @returns The amount in decimal format
-   */
-  private fromUSDCWei(wei: bigint): string {
-    const str = wei.toString().padStart(USDC_DECIMALS + 1, '0');
-    const whole = str.slice(0, -USDC_DECIMALS);
-    const fraction = str.slice(-USDC_DECIMALS);
-    return `${whole}.${fraction}`;
   }
 
   /**
@@ -212,7 +184,7 @@ export class EscrowManager {
         type: recipientType,
         address: raw.beneficiary,
       },
-      amount: this.fromUSDCWei(raw.amount),
+      amount: fromUSDCWei(raw.amount),
       state: sdkState,
       conditions,
       createdAt: Number(raw.createdAt),
@@ -261,7 +233,7 @@ export class EscrowManager {
       const expiresAt = timeoutSeconds > 0 ? BigInt(Math.floor(Date.now() / 1000) + timeoutSeconds) : 0n;
 
       // Convert amount to USDC wei
-      const amount = this.toUSDCWei(opts.amount);
+      const amount = toUSDCWei(opts.amount);
 
       // Encode condition data
       const conditionType = escrowConditionTypeToEnum(opts.conditions.type);
@@ -725,12 +697,12 @@ export class EscrowManager {
       const countFn = contract.read['escrowCount'];
       if (!countFn) return [];
       const count = await countFn([]) as bigint;
-      const limit = Math.min(Number(count), filters?.limit ?? 50);
+      const _limit = Math.min(Number(count), filters?.limit ?? 50);
 
       // On-chain sequential reads are expensive, cap at limit
       // NOTE: On-chain fallback is limited and cannot filter efficiently.
       // In production, the indexer should always be available.
-      void limit;
+      void _limit;
       return [];
     } catch (err) {
       this.telemetry.track('escrow.list.fallback.error', { error: String(err) });

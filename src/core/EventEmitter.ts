@@ -112,8 +112,14 @@ export class InvarianceEventEmitter {
       for (const listener of set) {
         try {
           listener(data);
-        } catch (_err) {
-          // Swallow listener errors to avoid breaking emitters
+        } catch (err) {
+          // Re-emit listener errors as 'error' event so consumers can observe failures
+          if (event !== 'error') {
+            this.emit('error', {
+              code: 'LISTENER_ERROR',
+              message: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
       }
     }

@@ -78,7 +78,7 @@ describe('contract-helpers', () => {
       try {
         identityStatusFromEnum(99);
       } catch (e) {
-        expect((e as InvarianceError).code).toBe(ErrorCode.INVALID_ACTOR_TYPE);
+        expect((e as InvarianceError).code).toBe(ErrorCode.INVALID_INPUT);
       }
     });
   });
@@ -196,14 +196,14 @@ describe('contract-helpers', () => {
       expect(result.code).toBe(ErrorCode.NOT_AUTHORIZED_SIGNER);
     });
 
-    it('maps AddressAlreadyRegistered to POLICY_VIOLATION', () => {
+    it('maps AddressAlreadyRegistered to INVALID_INPUT', () => {
       const err = {
         name: 'ContractFunctionRevertedError',
         data: { errorName: 'AddressAlreadyRegistered' },
         message: 'AddressAlreadyRegistered',
       };
       const result = mapContractError(err);
-      expect(result.code).toBe(ErrorCode.POLICY_VIOLATION);
+      expect(result.code).toBe(ErrorCode.INVALID_INPUT);
     });
 
     it('maps unknown contract revert to TX_REVERTED', () => {

@@ -541,9 +541,9 @@ describe('Suite 1: Client Initialization', () => {
     expect(inv.escrow).toBeInstanceOf(EscrowManager);
   });
 
-  it('version returns 2.0.0', () => {
-    expect(inv.version).toBe('2.0.0');
-    expect(SDK_VERSION).toBe('2.0.0');
+  it('version returns package.json version', () => {
+    expect(inv.version).toBe('0.0.1');
+    expect(SDK_VERSION).toBe('0.0.1');
   });
 });
 

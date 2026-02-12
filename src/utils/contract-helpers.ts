@@ -73,7 +73,7 @@ export function identityStatusFromEnum(val: number): 'active' | 'suspended' | 'd
   const status = IDENTITY_STATUS_MAP[val];
   if (!status) {
     throw new InvarianceError(
-      ErrorCode.INVALID_ACTOR_TYPE,
+      ErrorCode.INVALID_INPUT,
       `Unknown on-chain identity status enum: ${val}`,
     );
   }
@@ -136,7 +136,7 @@ export async function waitForReceipt(
   status: 'success' | 'reverted';
   logs: readonly { topics: readonly string[]; data: string }[];
 }> {
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
 
   const result = {
     txHash: receipt.transactionHash,
@@ -214,7 +214,7 @@ export function policyRuleTypeToEnum(type: string): number {
   const val = POLICY_RULE_TYPE_MAP[type];
   if (val === undefined) {
     throw new InvarianceError(
-      ErrorCode.POLICY_VIOLATION,
+      ErrorCode.INVALID_INPUT,
       `Unknown policy rule type: ${type}`,
     );
   }
@@ -231,7 +231,7 @@ export function enumToPolicyRuleType(val: number): string {
   const type = REVERSE_POLICY_RULE_TYPE_MAP[val];
   if (!type) {
     throw new InvarianceError(
-      ErrorCode.POLICY_VIOLATION,
+      ErrorCode.INVALID_INPUT,
       `Unknown on-chain policy rule type enum: ${val}`,
     );
   }
@@ -248,7 +248,7 @@ export function policyStateFromEnum(val: number): 'active' | 'revoked' | 'expire
   const state = POLICY_STATE_MAP[val];
   if (!state) {
     throw new InvarianceError(
-      ErrorCode.POLICY_VIOLATION,
+      ErrorCode.INVALID_INPUT,
       `Unknown on-chain policy state enum: ${val}`,
     );
   }
@@ -301,7 +301,7 @@ export function escrowConditionTypeToEnum(type: 'task-completion' | 'multi-sig' 
   const val = ESCROW_CONDITION_TYPE_MAP[type];
   if (val === undefined) {
     throw new InvarianceError(
-      ErrorCode.ESCROW_WRONG_STATE,
+      ErrorCode.INVALID_INPUT,
       `Unknown escrow condition type: ${type}`,
     );
   }
@@ -318,7 +318,7 @@ export function enumToEscrowConditionType(val: number): 'task-completion' | 'mul
   const type = REVERSE_ESCROW_CONDITION_TYPE_MAP[val];
   if (!type) {
     throw new InvarianceError(
-      ErrorCode.ESCROW_WRONG_STATE,
+      ErrorCode.INVALID_INPUT,
       `Unknown on-chain escrow condition type enum: ${val}`,
     );
   }
@@ -346,19 +346,19 @@ export function escrowStateFromEnum(val: number): 'created' | 'funded' | 'active
 const CONTRACT_ERROR_MAP: Record<string, ErrorCode> = {
   IdentityNotFound: ErrorCode.IDENTITY_NOT_FOUND,
   NotIdentityOwner: ErrorCode.NOT_AUTHORIZED_SIGNER,
-  AddressAlreadyRegistered: ErrorCode.POLICY_VIOLATION,
+  AddressAlreadyRegistered: ErrorCode.INVALID_INPUT,
   IdentityNotActive: ErrorCode.IDENTITY_SUSPENDED,
   IdentityAlreadyDeactivated: ErrorCode.IDENTITY_SUSPENDED,
   IdentityNotSuspended: ErrorCode.IDENTITY_NOT_FOUND,
-  InvalidAddress: ErrorCode.IDENTITY_NOT_FOUND,
+  InvalidAddress: ErrorCode.INVALID_INPUT,
   AttestationNotFound: ErrorCode.IDENTITY_NOT_FOUND,
   AttestationAlreadyRevoked: ErrorCode.IDENTITY_NOT_FOUND,
   NotAttester: ErrorCode.NOT_AUTHORIZED_SIGNER,
   AccessControlUnauthorizedAccount: ErrorCode.NOT_AUTHORIZED_SIGNER,
   // Escrow-specific errors
   EscrowNotFound: ErrorCode.ESCROW_NOT_FOUND,
-  InvalidAmount: ErrorCode.ESCROW_WRONG_STATE,
-  InvalidBeneficiary: ErrorCode.ESCROW_WRONG_STATE,
+  InvalidAmount: ErrorCode.INVALID_INPUT,
+  InvalidBeneficiary: ErrorCode.INVALID_INPUT,
   NotDepositor: ErrorCode.NOT_AUTHORIZED_SIGNER,
   NotBeneficiary: ErrorCode.NOT_AUTHORIZED_SIGNER,
   NotParty: ErrorCode.NOT_AUTHORIZED_SIGNER,
@@ -381,19 +381,19 @@ const CONTRACT_ERROR_MAP: Record<string, ErrorCode> = {
   NoRulesProvided: ErrorCode.POLICY_VIOLATION,
   InvalidExpiresAt: ErrorCode.POLICY_VIOLATION,
   // Intent-specific errors
-  IntentNotFound: ErrorCode.INTENT_EXPIRED,
+  IntentNotFound: ErrorCode.INVALID_INPUT,
   IntentNotPending: ErrorCode.INTENT_REJECTED,
   IntentNotApproved: ErrorCode.INTENT_REJECTED,
   IntentNotExecuting: ErrorCode.INTENT_REJECTED,
   IntentExpiredError: ErrorCode.INTENT_EXPIRED,
   NotRequester: ErrorCode.NOT_AUTHORIZED_SIGNER,
   PolicyDenied: ErrorCode.POLICY_VIOLATION,
-  InvalidExpiration: ErrorCode.INTENT_EXPIRED,
+  InvalidExpiration: ErrorCode.INVALID_INPUT,
   // Review-specific errors
-  ReviewNotFound: ErrorCode.IDENTITY_NOT_FOUND,
+  ReviewNotFound: ErrorCode.INVALID_INPUT,
   EscrowNotCompleted: ErrorCode.ESCROW_WRONG_STATE,
   NotEscrowParty: ErrorCode.NOT_AUTHORIZED_SIGNER,
-  AlreadyReviewed: ErrorCode.POLICY_VIOLATION,
+  AlreadyReviewed: ErrorCode.ALREADY_REVIEWED,
 };
 
 /**
@@ -456,7 +456,7 @@ export function intentStatusFromEnum(val: number): 'pending' | 'approved' | 'exe
   const status = INTENT_STATUS_MAP[val];
   if (!status) {
     throw new InvarianceError(
-      ErrorCode.INTENT_EXPIRED,
+      ErrorCode.INVALID_INPUT,
       `Unknown on-chain intent status enum: ${val}`,
     );
   }
@@ -587,7 +587,7 @@ export async function generateActorSignature(
  * @param event - The ledger event being co-signed
  * @returns The platform's commitment hash (NOT a real signature)
  */
-export function generatePlatformSignature(event: { action: string; metadata?: Record<string, unknown> }): string {
+export function generatePlatformCommitment(event: { action: string; metadata?: Record<string, unknown> }): string {
   const payload = JSON.stringify({ action: event.action, metadata: event.metadata ?? {}, platform: 'Invariance' });
   return keccak256(toHex(payload));
 }

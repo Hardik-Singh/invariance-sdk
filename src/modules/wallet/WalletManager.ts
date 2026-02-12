@@ -16,8 +16,9 @@ import type { EIP1193Provider, InvarianceSigner, InvarianceConfig } from '@invar
 import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import type { WalletInfo, BalanceInfo, WalletProvider, FundOptions, CreateWalletOptions } from './types.js';
-import type { TxReceipt, ExportData } from '@invariance/common';
+import type { TxReceipt } from '@invariance/common';
 import { waitForReceipt } from '../../utils/contract-helpers.js';
+import { toUSDCWei, fromUSDCWei } from '../../utils/usdc.js';
 
 /**
  * Handles wallet management for all identity types.
@@ -197,30 +198,6 @@ export class WalletManager {
     return this.publicClient;
   }
 
-  /**
-   * Convert decimal USDC amount to USDC wei (6 decimals).
-   * @param amount - Decimal amount string (e.g., "100.50")
-   * @returns The amount in USDC wei (6 decimals)
-   */
-  private toUSDCWei(amount: string): bigint {
-    const parts = amount.split('.');
-    const whole = parts[0] ?? '0';
-    const fraction = (parts[1] ?? '').padEnd(6, '0').slice(0, 6);
-    return BigInt(whole + fraction);
-  }
-
-  /**
-   * Convert USDC wei (6 decimals) to decimal string.
-   * @param wei - The amount in USDC wei (6 decimals)
-   * @returns The amount in decimal format
-   */
-  private fromUSDCWei(wei: bigint): string {
-    const str = wei.toString().padStart(7, '0'); // 6 decimals + at least 1 whole digit
-    const whole = str.slice(0, -6);
-    const fraction = str.slice(-6);
-    return `${whole}.${fraction}`;
-  }
-
   // =========================================================================
   // Accessors
   // =========================================================================
@@ -301,12 +278,6 @@ export class WalletManager {
     };
   }
 
-  /** Connect an injected wallet */
-  async connect(): Promise<WalletInfo> {
-    this.telemetry.track('wallet.connect');
-    throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'Use initFromSigner() or provide signer in config.');
-  }
-
   /** Get the current wallet info */
   async get(): Promise<WalletInfo> {
     this.telemetry.track('wallet.get');
@@ -334,10 +305,10 @@ export class WalletManager {
     // Input validation
     const parsedAmount = parseFloat(opts.amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, `Invalid fund amount: ${opts.amount}. Must be a positive number.`);
+      throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid fund amount: ${opts.amount}. Must be a positive number.`);
     }
     if (!address || !address.startsWith('0x') || address.length !== 42) {
-      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, `Invalid recipient address: ${address}`);
+      throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid recipient address: ${address}`);
     }
 
     const token = opts.token ?? 'USDC';
@@ -347,7 +318,7 @@ export class WalletManager {
     if (token === 'USDC') {
       // USDC transfer (ERC20)
       const usdcContract = this.contracts.getContract('mockUsdc');
-      const amount = this.toUSDCWei(opts.amount);
+      const amount = toUSDCWei(opts.amount);
 
       const transferFn = usdcContract.write['transfer'];
       if (!transferFn) {
@@ -403,7 +374,7 @@ export class WalletManager {
       const balanceOfFn = usdcContract.read['balanceOf'];
       if (balanceOfFn) {
         const balance = await balanceOfFn([addr]) as bigint;
-        usdcBalance = this.fromUSDCWei(balance);
+        usdcBalance = fromUSDCWei(balance);
       }
     } catch (err) {
       this.telemetry.track('wallet.balance.error', { error: String(err) });
@@ -416,9 +387,4 @@ export class WalletManager {
     };
   }
 
-  /** Export wallet for portability */
-  async export(): Promise<ExportData> {
-    this.telemetry.track('wallet.export');
-    throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'Export not supported for external signers.');
-  }
 }

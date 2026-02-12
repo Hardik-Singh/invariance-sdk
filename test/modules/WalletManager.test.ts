@@ -191,18 +191,6 @@ describe('WalletManager', () => {
     });
   });
 
-  describe('connect()', () => {
-    it('throws not supported error', async () => {
-      await expect(wallet.connect()).rejects.toThrow(InvarianceError);
-    });
-  });
-
-  describe('export()', () => {
-    it('throws not supported error', async () => {
-      await expect(wallet.export()).rejects.toThrow(InvarianceError);
-    });
-  });
-
   describe('telemetry', () => {
     it('tracks method calls', async () => {
       const trackSpy = vi.spyOn(telemetry, 'track');

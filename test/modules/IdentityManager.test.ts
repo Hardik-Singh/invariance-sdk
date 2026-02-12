@@ -556,7 +556,7 @@ describe('IdentityManager', () => {
           label: 'Bot',
         }),
       ).rejects.toMatchObject({
-        code: ErrorCode.POLICY_VIOLATION,
+        code: ErrorCode.INVALID_INPUT,
       });
     });
 

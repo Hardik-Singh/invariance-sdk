@@ -14,7 +14,7 @@ import {
   hashMetadata,
   intentStatusFromEnum,
   generateActorSignature,
-  generatePlatformSignature,
+  generatePlatformCommitment,
 } from '../../utils/contract-helpers.js';
 import type {
   IntentRequestOptions,
@@ -213,7 +213,7 @@ export class IntentProtocol {
       const metadata = opts.metadata ?? {};
       const walletClient = this.contracts.getWalletClient();
       const actorSig = await generateActorSignature({ action: opts.action, metadata }, walletClient);
-      const platformSig = generatePlatformSignature({ action: opts.action, metadata });
+      const platformSig = generatePlatformCommitment({ action: opts.action, metadata });
 
       const proof = {
         proofHash: metadataHash,
@@ -313,10 +313,14 @@ export class IntentProtocol {
 
       // Estimate gas
       const gasPrice = await publicClient.getGasPrice();
+      const gasLimit = 150000;
+      const gasCostWei = gasPrice * BigInt(gasLimit);
+      const { formatEther } = await import('viem');
+      const ethCost = formatEther(gasCostWei);
       const estimatedGas = {
-        ethCost: '0.001',
-        usdcCost: '2.50',
-        gasLimit: 150000,
+        ethCost,
+        usdcCost: '0', // Requires price oracle — not estimated here
+        gasLimit,
         gasPrice: gasPrice.toString(),
         strategy: this.contracts.getGasStrategy(),
       };
@@ -474,7 +478,7 @@ export class IntentProtocol {
 
       if (intent.completedAt > 0n) {
         // For completed intents, reconstruct commitment hashes (we may not be the original actor)
-        const platformSig = generatePlatformSignature({ action: result.action });
+        const platformSig = generatePlatformCommitment({ action: result.action });
         const actorSig = platformSig; // Commitment placeholder — original actor signature is on-chain
 
         result.proof = {

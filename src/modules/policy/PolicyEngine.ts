@@ -364,12 +364,12 @@ export class PolicyEngine {
       const countFn = contract.read['policyCount'];
       if (!countFn) return [];
       const count = await countFn([]) as bigint;
-      const limit = Math.min(Number(count), filters?.limit ?? 50);
+      const _limit = Math.min(Number(count), filters?.limit ?? 50);
 
       // On-chain sequential reads are expensive, cap at limit
       // NOTE: On-chain fallback is limited and cannot filter efficiently.
       // In production, the indexer should always be available.
-      void limit;
+      void _limit;
       return [];
     } catch (err) {
       this.telemetry.track('policy.list.fallback.error', { error: String(err) });

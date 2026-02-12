@@ -47,9 +47,12 @@ export type { VerifyProxy } from './core/InvarianceClient.js';
 // Core Infrastructure
 // ============================================================================
 
+/** @internal */
 export { ContractFactory } from './core/ContractFactory.js';
+/** @internal */
 export { InvarianceEventEmitter } from './core/EventEmitter.js';
 export type { InvarianceEvents } from './core/EventEmitter.js';
+/** @internal */
 export { Telemetry } from './core/Telemetry.js';
 
 // ============================================================================
