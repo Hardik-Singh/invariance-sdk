@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ErrorCode } from '@invariance/common';
+import { encodeAbiParameters, encodeEventTopics, getAddress, type Abi } from 'viem';
 import { EscrowManager } from '../../src/modules/escrow/EscrowManager.js';
 import { InvarianceError } from '../../src/errors/InvarianceError.js';
 import {
@@ -13,6 +14,7 @@ import type { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import type { Telemetry } from '../../src/core/Telemetry.js';
 import type { ContractFactory } from '../../src/core/ContractFactory.js';
 import { toBytes32 } from '../../src/utils/contract-helpers.js';
+import { InvarianceEscrowAbi } from '../../src/contracts/abis/index.js';
 import type { OnChainEscrow } from '../../src/modules/escrow/types.js';
 
 /** Helper to create a mock on-chain escrow tuple */
@@ -69,6 +71,7 @@ describe('EscrowManager', () => {
     mockIdentityContract = createMockContract({
       read: {
         resolve: vi.fn(),
+        get: vi.fn().mockResolvedValue({ actorType: 0 }), // default: agent
       },
     });
 
@@ -356,7 +359,7 @@ describe('EscrowManager', () => {
       expect(mockContract.write.approveRelease).toHaveBeenCalledWith([toBytes32('test-escrow-1')]);
     });
 
-    it('returns ApprovalResult with threshold status', async () => {
+    it('returns ApprovalResult with defaults when no event log present', async () => {
       mockContract.write.approveRelease.mockResolvedValue('0xtxhash' as `0x${string}`);
 
       const result = await escrow.approve('test-escrow-1');
@@ -369,23 +372,103 @@ describe('EscrowManager', () => {
         remaining: 1,
       });
     });
+
+    it('parses approval count and threshold from EscrowApproved event', async () => {
+      mockContract.write.approveRelease.mockResolvedValue('0xtxhash' as `0x${string}`);
+
+      // Build a properly ABI-encoded EscrowApproved event log
+      const topics = encodeEventTopics({
+        abi: InvarianceEscrowAbi as Abi,
+        eventName: 'EscrowApproved',
+        args: {
+          escrowId: toBytes32('test-escrow-1'),
+          approver: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+        },
+      });
+      const data = encodeAbiParameters(
+        [{ type: 'uint256' }, { type: 'uint256' }],
+        [2n, 3n], // approvalCount=2, threshold=3
+      );
+
+      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+        transactionHash: '0xtxhash' as `0x${string}`,
+        blockNumber: 100n,
+        gasUsed: 21000n,
+        status: 'success' as const,
+        logs: [{ topics: topics as readonly string[], data }],
+      });
+
+      const result = await escrow.approve('test-escrow-1');
+
+      expect(result.approvalsReceived).toBe(2);
+      expect(result.thresholdMet).toBe(false);
+      expect(result.remaining).toBe(1);
+    });
+
+    it('detects threshold met when approvalCount >= threshold', async () => {
+      mockContract.write.approveRelease.mockResolvedValue('0xtxhash' as `0x${string}`);
+
+      const topics = encodeEventTopics({
+        abi: InvarianceEscrowAbi as Abi,
+        eventName: 'EscrowApproved',
+        args: {
+          escrowId: toBytes32('test-escrow-1'),
+          approver: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+        },
+      });
+      const data = encodeAbiParameters(
+        [{ type: 'uint256' }, { type: 'uint256' }],
+        [3n, 3n], // approvalCount=3, threshold=3 — met!
+      );
+
+      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+        transactionHash: '0xtxhash' as `0x${string}`,
+        blockNumber: 100n,
+        gasUsed: 21000n,
+        status: 'success' as const,
+        logs: [{ topics: topics as readonly string[], data }],
+      });
+
+      const result = await escrow.approve('test-escrow-1');
+
+      expect(result.approvalsReceived).toBe(3);
+      expect(result.thresholdMet).toBe(true);
+      expect(result.remaining).toBe(0);
+    });
   });
 
   describe('approvals()', () => {
-    it('reads multi-sig escrow and returns approval status', async () => {
-      const rawEscrow = mockOnChainEscrow({ conditionType: 1 }); // MultiSig
+    it('reads multi-sig escrow and returns approval status with decoded signers', async () => {
+      const signers = [
+        getAddress('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+        getAddress('0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+        getAddress('0xcccccccccccccccccccccccccccccccccccccccc'),
+      ];
+      const conditionData = encodeAbiParameters(
+        [{ type: 'address[]' }, { type: 'uint256' }, { type: 'uint256' }],
+        [signers, 2n, 0n],
+      );
+      const rawEscrow = mockOnChainEscrow({ conditionType: 1, conditionData });
       mockContract.read.getEscrow.mockResolvedValue(rawEscrow);
 
       const result = await escrow.approvals('test-escrow-1');
 
-      expect(result).toMatchObject({
-        escrowId: 'test-escrow-1',
-        threshold: 0,
-        received: 0,
-        signers: [],
-        thresholdMet: false,
-        autoReleased: false,
-      });
+      expect(result.escrowId).toBe('test-escrow-1');
+      expect(result.threshold).toBe(2);
+      expect(result.signers).toHaveLength(3);
+      expect(result.signers[0]!.address).toMatch(/0xaaaa/i);
+      expect(result.thresholdMet).toBe(false);
+      expect(result.autoReleased).toBe(false);
+    });
+
+    it('returns empty signers when conditionData is empty', async () => {
+      const rawEscrow = mockOnChainEscrow({ conditionType: 1 }); // MultiSig, no conditionData
+      mockContract.read.getEscrow.mockResolvedValue(rawEscrow);
+
+      const result = await escrow.approvals('test-escrow-1');
+
+      expect(result.threshold).toBe(0);
+      expect(result.signers).toEqual([]);
     });
 
     it('throws error for non-multi-sig escrow', async () => {
@@ -481,6 +564,153 @@ describe('EscrowManager', () => {
           conditions: { type: 'task-completion', timeout: 'invalid' },
         }),
       ).rejects.toThrow(InvarianceError);
+    });
+  });
+
+  describe('multi-sig conditionData decoding', () => {
+    it('decodes signers and threshold from conditionData in status()', async () => {
+      const signers = [
+        getAddress('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+        getAddress('0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+      ];
+      const conditionData = encodeAbiParameters(
+        [{ type: 'address[]' }, { type: 'uint256' }, { type: 'uint256' }],
+        [signers, 2n, 3600n], // threshold=2, timeoutPerSigner=3600s
+      );
+      const rawEscrow = mockOnChainEscrow({
+        conditionType: 1,
+        conditionData,
+        expiresAt: BigInt(Math.floor(Date.now() / 1000) + 7200),
+      });
+      mockContract.read.getEscrow.mockResolvedValue(rawEscrow);
+      mockIdentityContract.read.get.mockResolvedValue({ actorType: 0 });
+
+      const result = await escrow.status('test-escrow-1');
+
+      expect(result.conditions.type).toBe('multi-sig');
+      expect(result.conditions.multiSig).toBeDefined();
+      expect(result.conditions.multiSig!.signers).toHaveLength(2);
+      expect(result.conditions.multiSig!.threshold).toBe(2);
+      expect(result.conditions.timeout).toBe('3600s');
+      expect(result.approvals).toBeDefined();
+      expect(result.approvals!.threshold).toBe(2);
+    });
+  });
+
+  describe('identity resolution', () => {
+    it('resolves depositor type from identity contract', async () => {
+      const rawEscrow = mockOnChainEscrow();
+      mockIdentityContract.read.resolve
+        .mockResolvedValueOnce(toBytes32('depositor-id'))
+        .mockResolvedValueOnce(toBytes32('beneficiary-id'));
+      mockContract.write.create.mockResolvedValue('0xtxhash' as `0x${string}`);
+      mockContract.read.getEscrow.mockResolvedValue(rawEscrow);
+      // depositor = human (1), recipient = service (3)
+      mockIdentityContract.read.get
+        .mockResolvedValueOnce({ actorType: 1 })
+        .mockResolvedValueOnce({ actorType: 3 });
+
+      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+        transactionHash: '0xtxhash' as `0x${string}`,
+        blockNumber: 100n,
+        gasUsed: 21000n,
+        status: 'success' as const,
+        logs: [{ topics: ['0xevent', toBytes32('test-escrow-1')], data: '0x' }],
+      });
+
+      const result = await escrow.create({
+        amount: '250.00',
+        recipient: { type: 'agent', address: '0x2222222222222222222222222222222222222222' },
+        conditions: { type: 'task-completion', timeout: '48h' },
+      });
+
+      expect(result.depositor.type).toBe('human');
+      expect(result.recipient.type).toBe('service');
+    });
+
+    it('falls back to agent when identity contract throws', async () => {
+      const rawEscrow = mockOnChainEscrow();
+      mockIdentityContract.read.resolve
+        .mockResolvedValueOnce(toBytes32('depositor-id'))
+        .mockResolvedValueOnce(toBytes32('beneficiary-id'));
+      mockContract.write.create.mockResolvedValue('0xtxhash' as `0x${string}`);
+      mockContract.read.getEscrow.mockResolvedValue(rawEscrow);
+      mockIdentityContract.read.get.mockRejectedValue(new Error('not found'));
+
+      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+        transactionHash: '0xtxhash' as `0x${string}`,
+        blockNumber: 100n,
+        gasUsed: 21000n,
+        status: 'success' as const,
+        logs: [{ topics: ['0xevent', toBytes32('test-escrow-1')], data: '0x' }],
+      });
+
+      const result = await escrow.create({
+        amount: '250.00',
+        recipient: { type: 'agent', address: '0x2222222222222222222222222222222222222222' },
+        conditions: { type: 'task-completion', timeout: '48h' },
+      });
+
+      expect(result.depositor.type).toBe('agent');
+      expect(result.recipient.type).toBe('agent');
+    });
+  });
+
+  describe('onStateChange()', () => {
+    it('calls watchContractEvent and returns unsubscribe function', () => {
+      const callback = vi.fn();
+      const unsubscribe = escrow.onStateChange('test-escrow-1', callback);
+
+      expect(mockPublicClient.watchContractEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          abi: expect.any(Array),
+          args: { escrowId: toBytes32('test-escrow-1') },
+          onLogs: expect.any(Function),
+        }),
+      );
+      expect(typeof unsubscribe).toBe('function');
+    });
+
+    it('invokes callback when relevant event logs are received', () => {
+      const callback = vi.fn();
+
+      // Capture the onLogs handler
+      let capturedOnLogs: ((logs: unknown[]) => void) | undefined;
+      mockPublicClient.watchContractEvent.mockImplementation((opts: { onLogs: (logs: unknown[]) => void }) => {
+        capturedOnLogs = opts.onLogs;
+        return () => { /* unwatch */ };
+      });
+
+      escrow.onStateChange('test-escrow-1', callback);
+
+      // Build a mock EscrowFunded event log
+      const topics = encodeEventTopics({
+        abi: InvarianceEscrowAbi as Abi,
+        eventName: 'EscrowFunded',
+        args: {
+          escrowId: toBytes32('test-escrow-1'),
+          funder: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+        },
+      });
+      const data = encodeAbiParameters(
+        [{ type: 'uint256' }],
+        [250000000n],
+      );
+
+      // Simulate receiving the log
+      capturedOnLogs!([{
+        data,
+        topics,
+        transactionHash: '0xfundedhash',
+      }]);
+
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          escrowId: 'test-escrow-1',
+          newState: 'funded',
+          txHash: '0xfundedhash',
+        }),
+      );
     });
   });
 

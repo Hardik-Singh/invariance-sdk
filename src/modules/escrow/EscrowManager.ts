@@ -2,8 +2,9 @@ import type { ContractFactory } from '../../core/ContractFactory.js';
 import type { InvarianceEventEmitter } from '../../core/EventEmitter.js';
 import type { Telemetry } from '../../core/Telemetry.js';
 import { ErrorCode } from '@invariance/common';
-import type { Unsubscribe } from '@invariance/common';
+import type { ActorType, EscrowState, Unsubscribe } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
+import { decodeAbiParameters, decodeEventLog } from 'viem';
 import {
   toBytes32,
   fromBytes32,
@@ -12,7 +13,9 @@ import {
   escrowConditionTypeToEnum,
   enumToEscrowConditionType,
   escrowStateFromEnum,
+  enumToActorType,
 } from '../../utils/contract-helpers.js';
+import { InvarianceEscrowAbi } from '../../contracts/abis/index.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
 import type {
   CreateEscrowOptions,
@@ -126,8 +129,32 @@ export class EscrowManager {
     return `${whole}.${fraction}`;
   }
 
+  /**
+   * Resolve an identity ID to its actor type by querying the identity contract.
+   *
+   * @param identityId - The on-chain identity ID (bytes32)
+   * @returns The actor type string
+   */
+  private async resolveActorType(identityId: `0x${string}`): Promise<ActorType> {
+    if (identityId === ZERO_BYTES32) return 'agent';
+    try {
+      const identityContract = this.contracts.getContract('identity');
+      const getFn = identityContract.read['get'];
+      if (!getFn) return 'agent';
+      const identity = await getFn([identityId]) as { actorType: number };
+      return enumToActorType(identity.actorType);
+    } catch {
+      return 'agent';
+    }
+  }
+
   /** Map an on-chain escrow tuple to the SDK EscrowContract type */
-  private mapOnChainEscrow(raw: OnChainEscrow, txHash?: string): EscrowContract {
+  private mapOnChainEscrow(
+    raw: OnChainEscrow,
+    txHash?: string,
+    depositorType: ActorType = 'agent',
+    recipientType: ActorType = 'agent',
+  ): EscrowContract {
     const explorerBase = this.contracts.getExplorerBaseUrl();
     const escrowIdStr = fromBytes32(raw.escrowId);
 
@@ -139,13 +166,26 @@ export class EscrowManager {
     };
 
     // Parse multi-sig config if applicable
-    if (conditionType === 'multi-sig' && raw.conditionData !== ZERO_BYTES32) {
-      // TODO: Decode multi-sig config from conditionData
-      // For now, set empty defaults
-      conditions.multiSig = {
-        signers: [],
-        threshold: 0,
-      };
+    if (conditionType === 'multi-sig' && raw.conditionData !== ZERO_BYTES32 && raw.conditionData.length > 2) {
+      try {
+        const [signers, threshold, timeoutPerSigner] = decodeAbiParameters(
+          [{ type: 'address[]' }, { type: 'uint256' }, { type: 'uint256' }],
+          raw.conditionData,
+        );
+        conditions.multiSig = {
+          signers: signers as string[],
+          threshold: Number(threshold),
+        };
+        if (timeoutPerSigner > 0n) {
+          conditions.timeout = `${Number(timeoutPerSigner)}s`;
+        }
+      } catch {
+        // Fallback if conditionData is malformed
+        conditions.multiSig = {
+          signers: [],
+          threshold: 0,
+        };
+      }
     }
 
     // Map state (SDK uses different naming)
@@ -165,11 +205,11 @@ export class EscrowManager {
       escrowId: escrowIdStr || raw.escrowId,
       contractAddress: this.getContractAddress(),
       depositor: {
-        type: 'agent', // TODO: Resolve from identity
+        type: depositorType,
         address: raw.depositor,
       },
       recipient: {
-        type: 'agent', // TODO: Resolve from identity
+        type: recipientType,
         address: raw.beneficiary,
       },
       amount: this.fromUSDCWei(raw.amount),
@@ -260,7 +300,11 @@ export class EscrowManager {
       if (!getEscrowFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'getEscrow function not found on contract');
       const raw = await getEscrowFn([escrowIdFromEvent as `0x${string}`]) as OnChainEscrow;
 
-      const escrowContract = this.mapOnChainEscrow(raw, receipt.txHash);
+      const [depositorType, recipientType] = await Promise.all([
+        this.resolveActorType(raw.depositorIdentityId),
+        this.resolveActorType(raw.beneficiaryIdentityId),
+      ]);
+      const escrowContract = this.mapOnChainEscrow(raw, receipt.txHash, depositorType, recipientType);
 
       this.events.emit('escrow.created', {
         escrowId: escrowContract.escrowId,
@@ -488,8 +532,23 @@ export class EscrowManager {
       const receipt = await waitForReceipt(publicClient, txHash);
 
       // Parse EscrowApproved event to get approval count and threshold
-      const approvalCount = 1; // TODO: Parse from event
-      const threshold = 2; // TODO: Parse from event
+      let approvalCount = 1;
+      let threshold = 2;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: InvarianceEscrowAbi,
+            data: log.data as `0x${string}`,
+            topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+          });
+          if (decoded.eventName === 'EscrowApproved') {
+            const args = decoded.args as { approvalCount: bigint; threshold: bigint };
+            approvalCount = Number(args.approvalCount);
+            threshold = Number(args.threshold);
+            break;
+          }
+        } catch { continue; }
+      }
 
       // Event emission handled by event listeners
 
@@ -531,13 +590,30 @@ export class EscrowManager {
         );
       }
 
-      // TODO: Decode multi-sig state from contract
-      // For now, return minimal data
+      // Decode multi-sig config from conditionData
+      let signerAddresses: string[] = [];
+      let sigThreshold = 0;
+      if (raw.conditionData.length > 2) {
+        try {
+          const [signers, thresholdVal] = decodeAbiParameters(
+            [{ type: 'address[]' }, { type: 'uint256' }, { type: 'uint256' }],
+            raw.conditionData,
+          );
+          signerAddresses = signers as string[];
+          sigThreshold = Number(thresholdVal);
+        } catch {
+          // conditionData malformed, return empty
+        }
+      }
+
       return {
         escrowId,
-        threshold: 0,
+        threshold: sigThreshold,
         received: 0,
-        signers: [],
+        signers: signerAddresses.map(addr => ({
+          address: addr,
+          approved: false,
+        })),
         thresholdMet: false,
         autoReleased: false,
       };
@@ -563,7 +639,11 @@ export class EscrowManager {
       if (!getEscrowFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'getEscrow function not found on contract');
       const raw = await getEscrowFn([escrowIdBytes]) as OnChainEscrow;
 
-      const escrowContract = this.mapOnChainEscrow(raw);
+      const [depositorType, recipientType] = await Promise.all([
+        this.resolveActorType(raw.depositorIdentityId),
+        this.resolveActorType(raw.beneficiaryIdentityId),
+      ]);
+      const escrowContract = this.mapOnChainEscrow(raw, undefined, depositorType, recipientType);
 
       // Calculate time remaining
       const now = Math.floor(Date.now() / 1000);
@@ -659,13 +739,46 @@ export class EscrowManager {
    * @param callback - Called when the escrow state changes
    * @returns Unsubscribe function
    */
-  onStateChange(_escrowId: string, _callback: EscrowStateChangeCallback): Unsubscribe {
+  onStateChange(escrowId: string, callback: EscrowStateChangeCallback): Unsubscribe {
     this.telemetry.track('escrow.onStateChange');
 
-    // TODO: Subscribe to contract events for this escrow
-    // For now, return a no-op unsubscribe
-    return () => {
-      // No-op: event subscription not yet implemented
+    const publicClient = this.contracts.getPublicClient();
+    const escrowIdBytes = toBytes32(escrowId);
+
+    const stateMap: Record<string, EscrowState> = {
+      EscrowFunded: 'funded',
+      EscrowReleased: 'released',
+      EscrowRefunded: 'refunded',
+      EscrowDisputed: 'disputed',
+      EscrowResolved: 'released',
     };
+
+    const unwatch = publicClient.watchContractEvent({
+      abi: InvarianceEscrowAbi,
+      args: { escrowId: escrowIdBytes },
+      onLogs: (logs: readonly { data: `0x${string}`; topics: readonly `0x${string}`[]; transactionHash?: string }[]) => {
+        for (const log of logs) {
+          try {
+            const decoded = decodeEventLog({
+              abi: InvarianceEscrowAbi,
+              data: log.data,
+              topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+            });
+            const newState = stateMap[decoded.eventName];
+            if (newState) {
+              callback({
+                escrowId,
+                previousState: 'created',
+                newState,
+                txHash: log.transactionHash ?? '',
+                timestamp: Date.now(),
+              });
+            }
+          } catch { continue; }
+        }
+      },
+    });
+
+    return unwatch;
   }
 }
