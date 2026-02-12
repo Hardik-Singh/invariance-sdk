@@ -111,7 +111,7 @@ export class Invariance {
     if (config.signer !== undefined) {
       const chain = config.chain === 'base' ? base : baseSepolia;
       const rpcUrl = this.contracts.getRpcUrl();
-      this._wallet = new WalletManager(this.contracts, this.telemetry);
+      this._wallet = new WalletManager(this.contracts, this.telemetry, this.config);
       this._walletInitPromise = this._wallet.initFromSigner(config.signer, rpcUrl, chain).then(() => {
         if (this._wallet!.isConnected()) {
           this.contracts.setClients(this._wallet!.getPublicClient(), this._wallet!.getWalletClient());
@@ -155,7 +155,7 @@ export class Invariance {
    */
   get wallet(): WalletManager {
     if (!this._wallet) {
-      this._wallet = new WalletManager(this.contracts, this.telemetry);
+      this._wallet = new WalletManager(this.contracts, this.telemetry, this.config);
     }
     return this._wallet;
   }
