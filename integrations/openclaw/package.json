@@ -1,0 +1,35 @@
+{
+  "name": "@invariance/openclaw-skill",
+  "version": "0.1.0",
+  "description": "Invariance guardrails for OpenClaw AI agents — verified crypto trading with on-chain policy enforcement",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@invariance/sdk": "workspace:*",
+    "viem": "^2.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "invariance",
+    "openclaw",
+    "ai-agent",
+    "guardrails",
+    "crypto",
+    "verification"
+  ],
+  "license": "MIT"
+}
