@@ -115,10 +115,15 @@ export class InvarianceEventEmitter {
         } catch (err) {
           // Re-emit listener errors as 'error' event so consumers can observe failures
           if (event !== 'error') {
-            this.emit('error', {
-              code: 'LISTENER_ERROR',
-              message: err instanceof Error ? err.message : String(err),
-            });
+            try {
+              this.emit('error', {
+                code: 'LISTENER_ERROR',
+                message: err instanceof Error ? err.message : String(err),
+              });
+            } catch (errorErr) {
+              // Prevent recursion if error listener itself throws
+              console.warn('[Invariance] Error listener threw:', errorErr instanceof Error ? errorErr.message : String(errorErr));
+            }
           }
         }
       }

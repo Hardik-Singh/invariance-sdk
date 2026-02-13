@@ -100,10 +100,9 @@ describe('contract-helpers', () => {
       expect(result).toBe('0x' + '0'.repeat(64));
     });
 
-    it('truncates strings longer than 32 bytes', () => {
+    it('throws for strings longer than 32 bytes', () => {
       const longStr = 'a'.repeat(100);
-      const result = toBytes32(longStr);
-      expect(result.length).toBe(66); // 0x + 64 hex chars
+      expect(() => toBytes32(longStr)).toThrow('ID exceeds 32 bytes');
     });
   });
 

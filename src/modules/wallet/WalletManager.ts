@@ -246,7 +246,7 @@ export class WalletManager {
     }
 
     // Lazy-import Privy SDK (optional dependency)
-    let PrivyClient: any;
+    let PrivyClient: any; // Dynamic import of optional peer dep; type unknown at compile time
     try {
       // @ts-ignore - Optional peer dependency, may not be installed
       const privyModule = await import('@privy-io/server-auth');
@@ -307,7 +307,7 @@ export class WalletManager {
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid fund amount: ${opts.amount}. Must be a positive number.`);
     }
-    if (!address || !address.startsWith('0x') || address.length !== 42) {
+    if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
       throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid recipient address: ${address}`);
     }
 
@@ -338,11 +338,16 @@ export class WalletManager {
       // ETH transfer (native)
       const value = parseEther(opts.amount);
 
-      const txHash = await this.walletClient!.sendTransaction({
-        account: this.walletClient!.account ?? this.address!,
+      const walletClient = this.walletClient!;
+      const account = walletClient.account ?? this.address;
+      if (!account) {
+        throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'No account available on wallet client.');
+      }
+      const txHash = await walletClient.sendTransaction({
+        account,
         to: recipient,
         value,
-        chain: this.walletClient!.chain,
+        chain: walletClient.chain,
       });
       const receipt = await waitForReceipt(publicClient, txHash);
 
@@ -362,13 +367,16 @@ export class WalletManager {
   async balance(address?: string | undefined): Promise<BalanceInfo> {
     this.telemetry.track('wallet.balance');
     const pc = this.requirePublicClient();
-    const addr = (address ?? this.address ?? '0x0000000000000000000000000000000000000000') as `0x${string}`;
+    if (!address && !this.address) {
+      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'No wallet connected. Provide an address or connect a wallet first.');
+    }
+    const addr = (address ?? this.address) as `0x${string}`;
 
     // Get ETH balance
     const ethBalance = await pc.getBalance({ address: addr });
 
-    // Get USDC balance
-    let usdcBalance = '0.000000';
+    // Get USDC balance (null signals contract unreachable)
+    let usdcBalance: string | null = '0.000000';
     try {
       const usdcContract = this.contracts.getContract('mockUsdc');
       const balanceOfFn = usdcContract.read['balanceOf'];
@@ -378,6 +386,7 @@ export class WalletManager {
       }
     } catch (err) {
       this.telemetry.track('wallet.balance.error', { error: String(err) });
+      usdcBalance = null;
     }
 
     return {

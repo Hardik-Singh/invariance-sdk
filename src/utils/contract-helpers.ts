@@ -96,11 +96,25 @@ export function toBytes32(id: string): `0x${string}` {
     return id as `0x${string}`;
   }
 
+  // Handle shorter 0x-prefixed hex strings (e.g., addresses) — pad to 32 bytes
+  if (id.startsWith('0x') && /^0x[0-9a-fA-F]+$/.test(id)) {
+    const hexPart = id.slice(2);
+    if (hexPart.length > 64) {
+      throw new InvarianceError(
+        ErrorCode.INVALID_INPUT,
+        `Hex ID exceeds 32 bytes: "${id}". Use a shorter identifier or hash it first.`,
+      );
+    }
+    return `0x${hexPart.padEnd(64, '0')}`;
+  }
+
   // Encode string to bytes32 by padding
   const hex = Buffer.from(id, 'utf8').toString('hex');
   if (hex.length > 64) {
-    // If too long, take first 64 hex chars (32 bytes)
-    return `0x${hex.slice(0, 64)}`;
+    throw new InvarianceError(
+      ErrorCode.INVALID_INPUT,
+      `ID exceeds 32 bytes: "${id}" (${hex.length / 2} bytes). Use a shorter identifier or hash it first.`,
+    );
   }
   return `0x${hex.padEnd(64, '0')}`;
 }
@@ -117,7 +131,13 @@ export function fromBytes32(bytes: `0x${string}`): string {
   // Remove trailing zeros (pairs of 00)
   const trimmed = hex.replace(/(00)+$/, '');
   if (trimmed.length === 0) return '';
-  return Buffer.from(trimmed, 'hex').toString('utf8');
+  const decoded = Buffer.from(trimmed, 'hex').toString('utf8');
+  // If decoded string contains replacement characters or non-printable bytes,
+  // it's likely a raw hash — return the original hex to ensure round-trip safety
+  if (/[\uFFFD]/.test(decoded) || Buffer.from(decoded, 'utf8').toString('hex') !== trimmed) {
+    return bytes;
+  }
+  return decoded;
 }
 
 /**

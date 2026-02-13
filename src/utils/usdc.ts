@@ -17,7 +17,11 @@ export function toUSDCWei(amount: string): bigint {
   }
   const parts = amount.split('.');
   const whole = parts[0] ?? '0';
-  const fraction = (parts[1] ?? '').padEnd(USDC_DECIMALS, '0').slice(0, USDC_DECIMALS);
+  const rawFraction = parts[1] ?? '';
+  if (rawFraction.length > USDC_DECIMALS) {
+    throw new InvarianceError(ErrorCode.INVALID_INPUT, `USDC amount has too many decimal places (max ${USDC_DECIMALS}): ${amount}`);
+  }
+  const fraction = rawFraction.padEnd(USDC_DECIMALS, '0');
   return BigInt(whole + fraction);
 }
 

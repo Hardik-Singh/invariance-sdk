@@ -83,7 +83,7 @@ export function createMockPublicClient(overrides?: {
     blockNumber: 100n,
     gasUsed: 21000n,
     status: 'success' as const,
-    logs: [] as { topics: readonly string[]; data: string }[],
+    logs: [{ topics: ['0x0000000000000000000000000000000000000000000000000000000000000000', '0x' + Buffer.from('mock-id').toString('hex').padEnd(64, '0')], data: '0x' }] as { topics: readonly string[]; data: string }[],
     ...overrides?.receipt,
   };
 

@@ -105,7 +105,7 @@ describe('MarketplaceKit', () => {
   let telemetry: Telemetry;
   let marketplace: MarketplaceKit;
 
-  const LISTING_ID = '0x' + 'ab'.repeat(32) as `0x${string}`;
+  const LISTING_ID = '0x' + Buffer.from('listing-1').toString('hex').padEnd(64, '0') as `0x${string}`;
 
   beforeEach(() => {
     mockRegistryContract = createMockContract({

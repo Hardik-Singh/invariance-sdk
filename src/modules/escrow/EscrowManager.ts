@@ -113,7 +113,8 @@ export class EscrowManager {
       const identityContract = this.contracts.getContract('identity');
       const getFn = identityContract.read['get'];
       if (!getFn) return 'agent';
-      const identity = await getFn([identityId]) as { actorType: number };
+      const identity = await getFn([identityId]) as { actorType: number } | null;
+      if (!identity) return 'agent';
       return enumToActorType(identity.actorType);
     } catch {
       return 'agent';
@@ -270,7 +271,11 @@ export class EscrowManager {
       const receipt = await waitForReceipt(publicClient, txHash);
 
       // Extract escrowId from EscrowCreated event
-      const escrowIdFromEvent = receipt.logs[0]?.topics[1] ?? ZERO_BYTES32;
+      const firstLog = receipt.logs[0];
+      if (!firstLog || !firstLog.topics[1]) {
+        throw new InvarianceError(ErrorCode.TX_REVERTED, 'EscrowCreated event not found in transaction receipt');
+      }
+      const escrowIdFromEvent = firstLog.topics[1];
 
       // Read back the escrow from chain
       const getEscrowFn = contract.read['getEscrow'];

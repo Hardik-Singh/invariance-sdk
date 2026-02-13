@@ -13,6 +13,7 @@ import {
   mapContractError,
   enumToActorType,
 } from '../../utils/contract-helpers.js';
+import { fromUSDCWei } from '../../utils/usdc.js';
 import type {
   VerificationResult,
   IdentityVerification,
@@ -488,8 +489,7 @@ export class Verifier {
       }
 
       const explorerBase = this.contracts.getExplorerBaseUrl();
-      const usdcDecimals = 6;
-      const amount = (Number(rawEscrow.amount) / Math.pow(10, usdcDecimals)).toFixed(usdcDecimals);
+      const amount = fromUSDCWei(rawEscrow.amount);
 
       return {
         escrowId,

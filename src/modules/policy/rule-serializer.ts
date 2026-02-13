@@ -13,6 +13,9 @@ function parseTimeValue(value: string | number): bigint {
   if (match) {
     const hours = parseInt(match[1]!, 10);
     const minutes = parseInt(match[2]!, 10);
+    if (hours >= 24 || minutes >= 60) {
+      throw new Error(`Invalid time value: ${value}. Hours must be 0-23, minutes must be 0-59.`);
+    }
     return BigInt(hours * 3600 + minutes * 60);
   }
   return BigInt(value);
