@@ -7,4 +7,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   external: ['viem', 'zod', '@invariance/common'],
+  define: {
+    __SDK_VERSION__: JSON.stringify(require('./package.json').version),
+  },
 });

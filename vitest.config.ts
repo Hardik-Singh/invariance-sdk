@@ -1,6 +1,9 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  define: {
+    __SDK_VERSION__: JSON.stringify(require('./package.json').version),
+  },
   test: {
     globals: true,
     environment: 'node',

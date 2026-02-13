@@ -45,14 +45,12 @@ import { InvarianceBridge } from '../modules/erc8004/InvarianceBridge.js';
 import { MarketplaceKit } from '../modules/marketplace/MarketplaceKit.js';
 import type { VerificationResult } from '../modules/verify/types.js';
 
-import { createRequire } from 'node:module';
-const _require = createRequire(import.meta.url);
-const _pkg = _require('../../package.json') as { version: string };
+declare const __SDK_VERSION__: string;
 
 /**
- * Current SDK version, read from package.json.
+ * Current SDK version, injected at build time via tsup define.
  */
-export const SDK_VERSION: string = _pkg.version;
+export const SDK_VERSION: string = __SDK_VERSION__;
 
 /**
  * The callable verify interface.
