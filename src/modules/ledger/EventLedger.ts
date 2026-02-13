@@ -24,6 +24,7 @@ import type {
   ExportData,
   LedgerStreamCallback,
 } from './types.js';
+import { LedgerAnalytics } from './LedgerAnalytics.js';
 
 /** On-chain LogInput struct */
 interface OnChainLogInput {
@@ -62,6 +63,7 @@ export class EventLedger {
   private readonly events: InvarianceEventEmitter;
   private readonly telemetry: Telemetry;
   private indexer: IndexerClient | null = null;
+  private _analytics?: LedgerAnalytics;
 
   constructor(
     contracts: ContractFactory,
@@ -71,6 +73,21 @@ export class EventLedger {
     this.contracts = contracts;
     this.events = events;
     this.telemetry = telemetry;
+  }
+
+  /**
+   * Analytics helpers for common ledger query patterns.
+   *
+   * @example
+   * ```typescript
+   * const rate = await inv.ledger.analytics.successRate('0xBot');
+   * ```
+   */
+  get analytics(): LedgerAnalytics {
+    if (!this._analytics) {
+      this._analytics = new LedgerAnalytics(this);
+    }
+    return this._analytics;
   }
 
   /** Lazily initialize the indexer client */

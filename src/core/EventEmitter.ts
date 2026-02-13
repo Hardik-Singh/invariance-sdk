@@ -29,6 +29,10 @@ export interface InvarianceEvents {
   'erc8004.identity.unlinked': { invarianceIdentityId: string; erc8004AgentId: string };
   'erc8004.feedback.pushed': { erc8004AgentId: string; value: number };
   'erc8004.validation.responded': { requestHash: string; response: number };
+  'action.before': { action: string; actor: { type: string; address: string }; timestamp: number };
+  'action.after': { action: string; actor: { type: string; address: string }; durationMs: number; success: boolean; timestamp: number };
+  'action.violation': { action: string; detail: string; policyId?: string; timestamp: number };
+  'action.error': { action: string; message: string; code?: string; timestamp: number };
   'error': { code: string; message: string };
 }
 

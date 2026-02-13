@@ -33,14 +33,20 @@ import type {
 export interface QuickSetupOptions {
   /** Identity registration options */
   identity: RegisterIdentityOptions;
-  /** Policy to create and attach to the new identity */
-  policy: CreatePolicyOptions;
+  /** Policy to create and attach to the new identity (required unless policyTemplate is set) */
+  policy?: CreatePolicyOptions;
+  /** Use a built-in policy template instead of manual policy config */
+  policyTemplate?: string;
+  /** Auto-fund the wallet after setup */
+  fund?: { amount: string; token?: 'USDC' };
 }
 
 /** Result of {@link Invariance.quickSetup} */
 export interface QuickSetupResult {
   identity: Identity;
   policy: SpecPolicy;
+  /** Whether the wallet was funded during setup */
+  funded?: boolean;
 }
 
 // ============================================================================
@@ -239,4 +245,63 @@ export interface DelegateOptions {
 export interface DelegateResult {
   policy: SpecPolicy;
   intent: IntentResult;
+}
+
+// ============================================================================
+// 11. batch
+// ============================================================================
+
+/** A deferred operation for batch execution */
+export interface DeferredOperation<T = unknown> {
+  /** The async function to execute */
+  execute: () => Promise<T>;
+  /** Human-readable description of the operation */
+  description: string;
+}
+
+/** Options for batch execution */
+export interface BatchOptions {
+  /** Continue executing remaining operations after a failure (default: false) */
+  continueOnError?: boolean;
+  /** Maximum number of concurrent operations (default: 5) */
+  maxConcurrency?: number;
+}
+
+/** Result of a batch execution */
+export interface BatchResult<T = unknown> {
+  results: Array<{ index: number; description: string; result: T }>;
+  failures: Array<{ index: number; description: string; error: string }>;
+  successCount: number;
+  failureCount: number;
+  totalCount: number;
+}
+
+// ============================================================================
+// 12. session
+// ============================================================================
+
+/** Options for creating a session context */
+export interface SessionOptions {
+  /** The actor to bind to all session operations */
+  actor: ActorReference;
+}
+
+// ============================================================================
+// 13. pipeline
+// ============================================================================
+
+/** A single step result in a pipeline execution */
+export interface PipelineStep {
+  name: string;
+  success: boolean;
+  result?: unknown;
+  error?: string;
+  durationMs: number;
+}
+
+/** Result of a pipeline execution */
+export interface PipelineResult {
+  success: boolean;
+  steps: PipelineStep[];
+  context: Record<string, unknown>;
 }

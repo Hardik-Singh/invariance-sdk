@@ -28,7 +28,13 @@ import type {
   PolicyViolationCallback,
   OnChainPolicy,
   OnChainPolicyRule,
+  PolicyTemplate,
 } from './types.js';
+import {
+  buildPolicyFromTemplate,
+  defineTemplate as defineTemplateInternal,
+  listTemplates as listTemplatesInternal,
+} from './templates.js';
 import { keccak256, toHex } from 'viem';
 
 /** Zero bytes32 constant */
@@ -586,6 +592,56 @@ export class PolicyEngine {
     } catch (err) {
       throw mapContractError(err);
     }
+  }
+
+  /**
+   * Create a policy from a pre-built template.
+   *
+   * @param templateName - Name of the template (e.g. 'defi-trading')
+   * @param overrides - Optional overrides for expiry, actor, or additional rules
+   * @returns The created policy
+   *
+   * @example
+   * ```typescript
+   * const policy = await inv.policy.fromTemplate('defi-trading', { expiry: '2025-12-31' });
+   * ```
+   */
+  async fromTemplate(
+    templateName: string,
+    overrides?: { expiry?: string; actor?: import('@invariance/common').ActorType | import('@invariance/common').ActorType[]; additionalRules?: import('@invariance/common').PolicyRule[] },
+  ): Promise<SpecPolicy> {
+    if (templateName === 'full-autonomy') {
+      console.warn('[Invariance] WARNING: "full-autonomy" template grants high limits with minimal restrictions. Use with caution.');
+    }
+    const opts = buildPolicyFromTemplate(templateName, overrides);
+    return this.create(opts);
+  }
+
+  /**
+   * Register a custom policy template.
+   *
+   * @param name - Template name
+   * @param template - Template definition with description and rules
+   *
+   * @example
+   * ```typescript
+   * inv.policy.defineTemplate('my-custom', {
+   *   description: 'Custom policy for my use case',
+   *   rules: [{ type: 'max-spend', config: { amount: '500' } }],
+   * });
+   * ```
+   */
+  defineTemplate(name: string, template: Omit<PolicyTemplate, 'name' | 'builtin'>): void {
+    defineTemplateInternal(name, template);
+  }
+
+  /**
+   * List all available policy templates (built-in + custom).
+   *
+   * @returns Array of template metadata
+   */
+  listTemplates(): Array<{ name: string; description: string; builtin: boolean }> {
+    return listTemplatesInternal();
   }
 
   /**

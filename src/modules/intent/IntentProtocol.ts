@@ -24,6 +24,8 @@ import type {
   ApprovalResult,
   TxReceipt,
   IntentHistoryFilters,
+  RetryConfig,
+  RetryResult,
 } from './types.js';
 
 /** On-chain Intent struct */
@@ -498,6 +500,57 @@ export class IntentProtocol {
     } catch (err) {
       throw mapContractError(err);
     }
+  }
+
+  /**
+   * Request an intent with automatic retry on transient failures.
+   *
+   * Retries on NETWORK_ERROR, RPC_ERROR, and TIMEOUT by default.
+   * Uses exponential backoff between attempts.
+   *
+   * @param opts - Intent request options
+   * @param retryConfig - Retry behavior configuration
+   * @returns Result with attempt history
+   *
+   * @example
+   * ```typescript
+   * const result = await inv.intent.requestWithRetry(
+   *   { actor, action: 'swap', params, approval: 'auto' },
+   *   { maxAttempts: 3, initialDelayMs: 1000, backoffMultiplier: 2 }
+   * );
+   * ```
+   */
+  async requestWithRetry(opts: IntentRequestOptions, retryConfig: RetryConfig = {}): Promise<RetryResult> {
+    const {
+      maxAttempts = 3,
+      initialDelayMs = 1000,
+      backoffMultiplier = 2,
+      retryableErrors = ['NETWORK_ERROR', 'RPC_ERROR', 'TIMEOUT'],
+    } = retryConfig;
+
+    const errors: RetryResult['errors'] = [];
+    let delay = initialDelayMs;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const result = await this.request(opts);
+        return { result, attempts: attempt, errors, success: true };
+      } catch (err) {
+        const code = (err as { code?: string }).code ?? 'UNKNOWN';
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push({ attempt, error: message, code });
+
+        const isRetryable = retryableErrors.some((rc) => code.includes(rc) || message.includes(rc));
+        if (!isRetryable || attempt === maxAttempts) {
+          return { result: null, attempts: attempt, errors, success: false };
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= backoffMultiplier;
+      }
+    }
+
+    return { result: null, attempts: maxAttempts, errors, success: false };
   }
 
   /**

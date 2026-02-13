@@ -20,7 +20,14 @@ import type {
   AuditReport,
   DelegateOptions,
   DelegateResult,
+  DeferredOperation,
+  BatchOptions,
+  BatchResult,
+  SessionOptions,
 } from './convenience-types.js';
+import { BatchExecutor } from './BatchExecutor.js';
+import { SessionContext } from './SessionContext.js';
+import { PipelineBuilder } from './PipelineBuilder.js';
 import { Telemetry } from './Telemetry.js';
 import { loadEnvConfig } from './env.js';
 import { IdentityManager } from '../modules/identity/IdentityManager.js';
@@ -486,9 +493,27 @@ export class Invariance {
    */
   async quickSetup(opts: QuickSetupOptions): Promise<QuickSetupResult> {
     const identity = await this.identity.register(opts.identity);
-    const policy = await this.policy.create(opts.policy);
+
+    let policy: SpecPolicy;
+    if (opts.policyTemplate) {
+      policy = await this.policy.fromTemplate(opts.policyTemplate);
+    } else if (opts.policy) {
+      policy = await this.policy.create(opts.policy);
+    } else {
+      throw new Error('quickSetup requires either policy or policyTemplate');
+    }
+
     await this.policy.attach(policy.policyId, identity.identityId);
-    return { identity, policy };
+
+    const result: QuickSetupResult = { identity, policy };
+
+    if (opts.fund) {
+      const walletAddress = this.wallet.getAddress();
+      await this.wallet.fund(walletAddress, { amount: opts.fund.amount, token: opts.fund.token });
+      result.funded = true;
+    }
+
+    return result;
   }
 
   /**
@@ -867,6 +892,106 @@ export class Invariance {
     });
 
     return { policy, intent };
+  }
+
+  // ===========================================================================
+  // Convenience Layer — Batch, Session, Pipeline, Hooks
+  // ===========================================================================
+
+  /**
+   * Execute multiple operations with concurrency control and error handling.
+   *
+   * @param operations - Operations to execute
+   * @param options - Batch execution options
+   * @returns Aggregated results with success/failure counts
+   *
+   * @example
+   * ```typescript
+   * const results = await inv.batch([
+   *   { execute: () => inv.identity.register({...}), description: 'Register Bot1' },
+   *   { execute: () => inv.identity.register({...}), description: 'Register Bot2' },
+   * ], { continueOnError: true, maxConcurrency: 3 });
+   * ```
+   */
+  async batch<T = unknown>(operations: DeferredOperation<T>[], options?: BatchOptions): Promise<BatchResult<T>> {
+    const executor = new BatchExecutor();
+    return executor.execute(operations, options);
+  }
+
+  /**
+   * Create a session context bound to a specific actor.
+   *
+   * All operations on the returned session automatically use the bound actor.
+   *
+   * @param options - Session options with actor reference
+   * @returns Session context with actor-scoped methods
+   *
+   * @example
+   * ```typescript
+   * const session = inv.session({ actor: { type: 'agent', address: '0xBot' } });
+   * await session.requestIntent({ action: 'swap', params: {...} });
+   * ```
+   */
+  session(options: SessionOptions): SessionContext {
+    return new SessionContext(this, options);
+  }
+
+  /**
+   * Create a fluent pipeline builder for multi-step workflows.
+   *
+   * @returns Pipeline builder with chainable methods
+   *
+   * @example
+   * ```typescript
+   * const result = await inv.pipeline()
+   *   .register({ type: 'agent', label: 'Bot', owner: '0x...' })
+   *   .createPolicy({ template: 'defi-trading' })
+   *   .attachPolicy()
+   *   .execute();
+   * ```
+   */
+  pipeline(): PipelineBuilder {
+    return new PipelineBuilder(this);
+  }
+
+  /**
+   * Register a callback to run before every intent action.
+   *
+   * @param callback - Called before each action with action details
+   * @returns Unsubscribe function
+   */
+  beforeAction(callback: (data: import('./EventEmitter.js').InvarianceEvents['action.before']) => void): () => void {
+    return this.events.on('action.before', callback);
+  }
+
+  /**
+   * Register a callback to run after every intent action.
+   *
+   * @param callback - Called after each action with result details
+   * @returns Unsubscribe function
+   */
+  afterAction(callback: (data: import('./EventEmitter.js').InvarianceEvents['action.after']) => void): () => void {
+    return this.events.on('action.after', callback);
+  }
+
+  /**
+   * Register a callback for policy violation events.
+   *
+   * @param callback - Called when a violation occurs
+   * @returns Unsubscribe function
+   */
+  onViolation(callback: (data: import('./EventEmitter.js').InvarianceEvents['action.violation']) => void): () => void {
+    return this.events.on('action.violation', callback);
+  }
+
+  /**
+   * Register a callback for error events.
+   *
+   * @param callback - Called when an error occurs
+   * @returns Unsubscribe function
+   */
+  onError(callback: (data: import('./EventEmitter.js').InvarianceEvents['action.error']) => void): () => void {
+    return this.events.on('action.error', callback);
   }
 
   // ===========================================================================

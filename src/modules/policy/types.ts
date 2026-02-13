@@ -57,3 +57,27 @@ export interface OnChainPolicyRule {
   ruleType: number;
   config: `0x${string}`;
 }
+
+// ============================================================================
+// Policy Templates
+// ============================================================================
+
+/** Built-in template names */
+export type BuiltInTemplate =
+  | 'conservative-spending'
+  | 'defi-trading'
+  | 'content-agent'
+  | 'research-agent'
+  | 'full-autonomy';
+
+/** A policy template definition */
+export interface PolicyTemplate {
+  /** Template name */
+  name: string;
+  /** Human-readable description */
+  description: string;
+  /** Whether this is a built-in template */
+  builtin: boolean;
+  /** Policy rules included in the template */
+  rules: import('@invariance/common').PolicyRule[];
+}

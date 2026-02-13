@@ -65,7 +65,22 @@ export type {
   AuditReport,
   DelegateOptions,
   DelegateResult,
+  DeferredOperation,
+  BatchOptions,
+  BatchResult,
+  SessionOptions,
+  PipelineStep,
+  PipelineResult,
 } from './core/convenience-types.js';
+
+// ============================================================================
+// Convenience Layer — New Classes
+// ============================================================================
+
+export { BatchExecutor } from './core/BatchExecutor.js';
+export { SessionContext } from './core/SessionContext.js';
+export { PipelineBuilder } from './core/PipelineBuilder.js';
+export { LedgerAnalytics } from './modules/ledger/LedgerAnalytics.js';
 
 // ============================================================================
 // Core Infrastructure
@@ -145,7 +160,7 @@ export type {
   ProofBundle,
   GasEstimate,
 } from './modules/intent/types.js';
-export type { IntentHistoryFilters } from './modules/intent/types.js';
+export type { IntentHistoryFilters, RetryConfig, RetryResult } from './modules/intent/types.js';
 
 // ============================================================================
 // Module Types — Policy
@@ -163,6 +178,8 @@ export type {
   EvaluateOptions,
   PolicyListFilters,
   PolicyViolationCallback,
+  PolicyTemplate,
+  BuiltInTemplate,
 } from './modules/policy/types.js';
 
 // ============================================================================
@@ -194,6 +211,13 @@ export type {
   LedgerQueryFilters,
 } from './modules/ledger/types.js';
 export type { LedgerStreamCallback } from './modules/ledger/types.js';
+export type {
+  AnalyticsTimeframe,
+  SuccessRateResult,
+  ActionCountResult,
+  CostSummaryResult,
+  ViolationResult,
+} from './modules/ledger/types.js';
 
 // ============================================================================
 // Module Types — Verify
