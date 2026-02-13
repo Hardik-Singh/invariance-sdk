@@ -67,7 +67,7 @@ describe('Verifier', () => {
 
   describe('verify()', () => {
     it('fetches receipt, parses logs, and returns VerificationResult', async () => {
-      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+      mockPublicClient.getTransactionReceipt.mockResolvedValue({
         transactionHash: '0xabc123' as `0x${string}`,
         blockNumber: 100n,
         gasUsed: 21000n,
@@ -103,7 +103,7 @@ describe('Verifier', () => {
     });
 
     it('throws VERIFICATION_FAILED for reverted transaction', async () => {
-      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+      mockPublicClient.getTransactionReceipt.mockResolvedValue({
         transactionHash: '0xreverted' as `0x${string}`,
         blockNumber: 100n,
         gasUsed: 21000n,
@@ -118,7 +118,7 @@ describe('Verifier', () => {
     });
 
     it('throws VERIFICATION_FAILED when no Invariance events found', async () => {
-      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+      mockPublicClient.getTransactionReceipt.mockResolvedValue({
         transactionHash: '0xnoevents' as `0x${string}`,
         blockNumber: 100n,
         gasUsed: 21000n,
@@ -130,7 +130,7 @@ describe('Verifier', () => {
     });
 
     it('handles missing ledger entry gracefully (falls through to intent events)', async () => {
-      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+      mockPublicClient.getTransactionReceipt.mockResolvedValue({
         transactionHash: '0xabc123' as `0x${string}`,
         blockNumber: 100n,
         gasUsed: 21000n,
@@ -168,7 +168,7 @@ describe('Verifier', () => {
           }),
       );
 
-      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+      mockPublicClient.getTransactionReceipt.mockResolvedValue({
         transactionHash: '0xmatch123' as `0x${string}`,
         blockNumber: 100n,
         gasUsed: 21000n,
@@ -285,7 +285,7 @@ describe('Verifier', () => {
   describe('bulk()', () => {
     it('processes array and returns results for each hash', async () => {
       // First hash succeeds, second fails
-      mockPublicClient.waitForTransactionReceipt
+      mockPublicClient.getTransactionReceipt
         .mockResolvedValueOnce({
           transactionHash: '0xsuccess' as `0x${string}`,
           blockNumber: 100n,

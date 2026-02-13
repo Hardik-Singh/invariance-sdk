@@ -126,8 +126,8 @@ export class Verifier {
       const publicClient = this.contracts.getPublicClient();
       const ledgerContract = this.contracts.getContract('ledger');
 
-      // 1. Fetch tx receipt from RPC
-      const receipt = await publicClient.waitForTransactionReceipt({
+      // 1. Fetch tx receipt from RPC (tx is already mined)
+      const receipt = await publicClient.getTransactionReceipt({
         hash: txHash as `0x${string}`,
       });
 

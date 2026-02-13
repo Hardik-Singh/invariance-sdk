@@ -360,8 +360,8 @@ describe('Full E2E Integration', () => {
       expect(mockLedgerContract.write.log).toHaveBeenCalledOnce();
 
       // === Step 7: Verify Transaction ===
-      // Update receipt for verifier
-      mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
+      // Update receipt for verifier (uses getTransactionReceipt, not waitFor)
+      mockPublicClient.getTransactionReceipt.mockResolvedValue({
         transactionHash: '0xtx_ledger' as `0x${string}`,
         blockNumber: 200n,
         gasUsed: 50000n,
@@ -557,8 +557,8 @@ describe('Full E2E Integration', () => {
 
       const verifier = new Verifier(factory, events, telemetry);
 
-      // First tx succeeds with ledger entry
-      mockPublicClient.waitForTransactionReceipt
+      // First tx succeeds with ledger entry (verify uses getTransactionReceipt)
+      mockPublicClient.getTransactionReceipt
         .mockResolvedValueOnce({
           transactionHash: '0xsuccess' as `0x${string}`,
           blockNumber: 100n,
