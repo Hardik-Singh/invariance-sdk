@@ -1,8 +1,26 @@
-import type { InvarianceConfig } from '@invariance/common';
+import type { InvarianceConfig, SpecPolicy, EscrowContract } from '@invariance/common';
 import { base, baseSepolia } from 'viem/chains';
 import { privateKeyToAccount, generatePrivateKey, mnemonicToAccount } from 'viem/accounts';
 import { ContractFactory } from './ContractFactory.js';
 import { InvarianceEventEmitter } from './EventEmitter.js';
+import type {
+  QuickSetupOptions,
+  QuickSetupResult,
+  HireAndFundOptions,
+  BatchRegisterOptions,
+  BatchRegisterEntry,
+  ExecuteAndLogOptions,
+  ExecuteAndLogResult,
+  RecurringPaymentOptions,
+  CreateMultiSigOptions,
+  SetupRateLimitedAgentOptions,
+  HireAndReviewOptions,
+  HireAndReviewResult,
+  AuditOptions,
+  AuditReport,
+  DelegateOptions,
+  DelegateResult,
+} from './convenience-types.js';
 import { Telemetry } from './Telemetry.js';
 import { loadEnvConfig } from './env.js';
 import { IdentityManager } from '../modules/identity/IdentityManager.js';
@@ -446,6 +464,409 @@ export class Invariance {
       this._marketplace = new MarketplaceKit(this.contracts, this.events, this.telemetry);
     }
     return this._marketplace;
+  }
+
+  // ===========================================================================
+  // Convenience Methods (high-level workflows)
+  // ===========================================================================
+
+  /**
+   * Register an identity, create a policy, and attach it in one call.
+   *
+   * @param opts - Identity and policy options
+   * @returns The created identity and attached policy
+   *
+   * @example
+   * ```typescript
+   * const { identity, policy } = await inv.quickSetup({
+   *   identity: { type: 'agent', owner: '0xDev', label: 'TraderBot' },
+   *   policy: { name: 'trading-limits', rules: [{ type: 'max-spend', config: { amount: '1000' } }] },
+   * });
+   * ```
+   */
+  async quickSetup(opts: QuickSetupOptions): Promise<QuickSetupResult> {
+    const identity = await this.identity.register(opts.identity);
+    const policy = await this.policy.create(opts.policy);
+    await this.policy.attach(policy.policyId, identity.identityId);
+    return { identity, policy };
+  }
+
+  /**
+   * Hire from a marketplace listing and auto-fund the escrow.
+   *
+   * @param opts - Hire options with optional fund amount override
+   * @returns Hire result with funded escrow
+   *
+   * @example
+   * ```typescript
+   * const result = await inv.hireAndFund({
+   *   listingId: 'listing-123',
+   *   task: { description: 'Label 1000 images', deadline: '2025-06-01' },
+   *   payment: { amount: '500', type: 'escrow' },
+   * });
+   * ```
+   */
+  async hireAndFund(opts: HireAndFundOptions): Promise<import('@invariance/common').HireResult> {
+    const { fundAmount: _fundAmount, ...hireOpts } = opts;
+    const result = await this.marketplace.hire(hireOpts);
+    await this.escrow.fund(result.escrowId);
+    return result;
+  }
+
+  /**
+   * Register multiple agents with a shared policy in one call.
+   *
+   * @param opts - Batch of agents and a shared policy
+   * @returns Array of registered identities with attached policies
+   *
+   * @example
+   * ```typescript
+   * const agents = await inv.batchRegister({
+   *   agents: [
+   *     { identity: { type: 'agent', owner: '0xDev', label: 'Worker-1' } },
+   *     { identity: { type: 'agent', owner: '0xDev', label: 'Worker-2' } },
+   *   ],
+   *   sharedPolicy: { name: 'worker-policy', rules: [{ type: 'rate-limit', config: { max: 100, window: 'PT1H' } }] },
+   * });
+   * ```
+   */
+  async batchRegister(opts: BatchRegisterOptions): Promise<BatchRegisterEntry[]> {
+    const sharedPolicy = await this.policy.create(opts.sharedPolicy);
+    const results: BatchRegisterEntry[] = [];
+
+    for (const agent of opts.agents) {
+      const identity = await this.identity.register(agent.identity);
+      let policy = sharedPolicy;
+      if (agent.policyOverride) {
+        policy = await this.policy.create(agent.policyOverride);
+      }
+      await this.policy.attach(policy.policyId, identity.identityId);
+      results.push({ identity, policy });
+    }
+
+    return results;
+  }
+
+  /**
+   * Execute an intent and log a custom ledger event in one call.
+   *
+   * @param opts - Intent request options and ledger event input
+   * @returns The intent result and logged ledger entry
+   *
+   * @example
+   * ```typescript
+   * const { intent, log } = await inv.executeAndLog({
+   *   intent: {
+   *     actor: { type: 'agent', address: '0xAgent' },
+   *     action: 'moderate',
+   *     params: { contentId: 'post-456' },
+   *     approval: 'auto',
+   *   },
+   *   log: {
+   *     action: 'content-moderated',
+   *     actor: { type: 'agent', address: '0xAgent' },
+   *     category: 'custom',
+   *     metadata: { contentId: 'post-456', verdict: 'approved' },
+   *   },
+   * });
+   * ```
+   */
+  async executeAndLog(opts: ExecuteAndLogOptions): Promise<ExecuteAndLogResult> {
+    const intent = await this.intent.request(opts.intent);
+    const log = await this.ledger.log(opts.log);
+    return { intent, log };
+  }
+
+  /**
+   * Create a policy configured for recurring payments with time-window rules.
+   *
+   * @param opts - Recurring payment configuration
+   * @returns The created policy
+   *
+   * @example
+   * ```typescript
+   * const policy = await inv.recurringPayment({
+   *   name: 'monthly-subscription',
+   *   amount: '50',
+   *   recipient: '0xService',
+   *   interval: 'P1M',
+   *   maxPayments: 12,
+   * });
+   * ```
+   */
+  async recurringPayment(opts: RecurringPaymentOptions): Promise<SpecPolicy> {
+    const rules: import('@invariance/common').PolicyRule[] = [
+      {
+        type: 'require-payment',
+        config: {
+          minAmount: opts.amount,
+          recipient: opts.recipient,
+          perAction: true,
+        },
+      },
+      {
+        type: 'time-window',
+        config: {
+          interval: opts.interval,
+          maxExecutions: opts.maxPayments,
+        },
+      },
+    ];
+
+    if (opts.allowedActions) {
+      rules.push({
+        type: 'action-whitelist',
+        config: { actions: opts.allowedActions },
+      });
+    }
+
+    const policyOpts: import('@invariance/common').CreatePolicyOptions = {
+      name: opts.name,
+      rules,
+    };
+    if (opts.actor !== undefined) policyOpts.actor = opts.actor;
+    if (opts.expiry !== undefined) policyOpts.expiry = opts.expiry;
+
+    return this.policy.create(policyOpts);
+  }
+
+  /**
+   * Create a multi-sig escrow with simplified options.
+   *
+   * @param opts - Multi-sig escrow configuration
+   * @returns The created escrow contract
+   *
+   * @example
+   * ```typescript
+   * const escrow = await inv.createMultiSig({
+   *   amount: '10000',
+   *   recipient: { type: 'agent', address: '0xAgent' },
+   *   signers: ['0xSigner1', '0xSigner2', '0xSigner3'],
+   *   threshold: 2,
+   * });
+   * ```
+   */
+  async createMultiSig(opts: CreateMultiSigOptions): Promise<EscrowContract> {
+    const multiSig: import('@invariance/common').MultiSigConfig = {
+      signers: opts.signers,
+      threshold: opts.threshold,
+    };
+    if (opts.timeoutPerSigner !== undefined) multiSig.timeoutPerSigner = opts.timeoutPerSigner;
+
+    const escrowOpts: import('@invariance/common').CreateEscrowOptions = {
+      amount: opts.amount,
+      recipient: opts.recipient,
+      conditions: {
+        type: 'multi-sig',
+        timeout: opts.timeout ?? 'P30D',
+        multiSig,
+      },
+    };
+    if (opts.autoFund !== undefined) escrowOpts.autoFund = opts.autoFund;
+
+    return this.escrow.create(escrowOpts);
+  }
+
+  /**
+   * Register an agent with rate-limit and cooldown policies pre-configured.
+   *
+   * @param opts - Agent identity and rate limit configuration
+   * @returns The created identity and rate-limit policy
+   *
+   * @example
+   * ```typescript
+   * const { identity, policy } = await inv.setupRateLimitedAgent({
+   *   identity: { type: 'agent', owner: '0xDev', label: 'SupportBot' },
+   *   maxActions: 100,
+   *   window: 'PT1H',
+   *   cooldown: 'PT5S',
+   *   allowedActions: ['reply', 'escalate', 'close'],
+   * });
+   * ```
+   */
+  async setupRateLimitedAgent(opts: SetupRateLimitedAgentOptions): Promise<QuickSetupResult> {
+    const rules: import('@invariance/common').PolicyRule[] = [
+      {
+        type: 'rate-limit',
+        config: { max: opts.maxActions, window: opts.window },
+      },
+    ];
+
+    if (opts.cooldown) {
+      rules.push({ type: 'cooldown', config: { duration: opts.cooldown } });
+    }
+
+    if (opts.allowedActions) {
+      rules.push({ type: 'action-whitelist', config: { actions: opts.allowedActions } });
+    }
+
+    if (opts.maxSpend) {
+      rules.push({ type: 'max-spend', config: { amount: opts.maxSpend } });
+    }
+
+    return this.quickSetup({
+      identity: opts.identity,
+      policy: {
+        name: `${opts.identity.label}-rate-limit`,
+        rules,
+      },
+    });
+  }
+
+  /**
+   * Complete the full hire → complete → review flow in one call.
+   *
+   * @param opts - Hire, completion, and review options
+   * @returns Combined result with hire, completion, and review data
+   *
+   * @example
+   * ```typescript
+   * const result = await inv.hireAndReview({
+   *   hire: {
+   *     listingId: 'listing-123',
+   *     task: { description: 'Analyze dataset', deadline: '2025-06-01' },
+   *     payment: { amount: '200', type: 'escrow' },
+   *   },
+   *   review: { rating: 5, comment: 'Excellent work' },
+   * });
+   * ```
+   */
+  async hireAndReview(opts: HireAndReviewOptions): Promise<HireAndReviewResult> {
+    const hireAndFundOpts: HireAndFundOptions = { ...opts.hire };
+    if (opts.fundAmount !== undefined) hireAndFundOpts.fundAmount = opts.fundAmount;
+    const hire = await this.hireAndFund(hireAndFundOpts);
+    const completion = await this.marketplace.complete(hire.hireId, {
+      review: {
+        ...opts.review,
+        target: hire.listing.identity.identityId,
+        escrowId: hire.escrowId,
+      },
+    });
+    return {
+      hire,
+      completion,
+      review: {
+        reviewId: completion.reviewId,
+        updatedReputation: completion.updatedReputation,
+      },
+    };
+  }
+
+  /**
+   * Query ledger entries, optionally verify each one, and export a report.
+   *
+   * @param opts - Audit query filters and options
+   * @returns Audit report with entries, verification results, and optional export
+   *
+   * @example
+   * ```typescript
+   * const report = await inv.audit({
+   *   actor: '0xAgent',
+   *   from: '2025-01-01',
+   *   to: '2025-06-01',
+   *   verify: true,
+   *   exportFormat: 'json',
+   * });
+   * console.log(`${report.verifiedCount}/${report.totalEntries} entries verified`);
+   * ```
+   */
+  async audit(opts: AuditOptions): Promise<AuditReport> {
+    const { verify: shouldVerify, exportFormat, ...filters } = opts;
+    const entries = await this.ledger.query(filters);
+    const failedVerifications: AuditReport['failedVerifications'] = [];
+    let verifiedCount = 0;
+
+    if (shouldVerify) {
+      for (const entry of entries) {
+        try {
+          const result = await this.verify(entry.txHash);
+          if (result.verified) {
+            verifiedCount++;
+          } else {
+            failedVerifications.push({
+              entryId: entry.entryId,
+              error: 'Verification returned invalid',
+            });
+          }
+        } catch (err) {
+          failedVerifications.push({
+            entryId: entry.entryId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
+    const report: AuditReport = {
+      entries,
+      totalEntries: entries.length,
+      verifiedCount,
+      failedVerifications,
+      generatedAt: Date.now(),
+    };
+
+    if (exportFormat) {
+      report.exported = await this.ledger.export(filters);
+    }
+
+    return report;
+  }
+
+  /**
+   * Create a scoped child policy for agent-to-agent delegation.
+   *
+   * @param opts - Delegation scope and agent identifiers
+   * @returns The delegation policy and intent recording the delegation
+   *
+   * @example
+   * ```typescript
+   * const { policy, intent } = await inv.delegate({
+   *   from: 'identity-orchestrator',
+   *   to: 'identity-worker',
+   *   scope: {
+   *     actions: ['fetch-data', 'transform'],
+   *     maxSpend: '50',
+   *     expiry: '2025-06-01T00:00:00Z',
+   *   },
+   * });
+   * ```
+   */
+  async delegate(opts: DelegateOptions): Promise<DelegateResult> {
+    const rules: import('@invariance/common').PolicyRule[] = [
+      { type: 'action-whitelist', config: { actions: opts.scope.actions } },
+    ];
+
+    if (opts.scope.maxSpend) {
+      rules.push({ type: 'max-spend', config: { amount: opts.scope.maxSpend } });
+    }
+
+    if (opts.scope.additionalRules) {
+      rules.push(...opts.scope.additionalRules);
+    }
+
+    const delegationPolicyOpts: import('@invariance/common').CreatePolicyOptions = {
+      name: `delegation-${opts.from}-to-${opts.to}`,
+      rules,
+    };
+    if (opts.scope.expiry !== undefined) delegationPolicyOpts.expiry = opts.scope.expiry;
+
+    const policy = await this.policy.create(delegationPolicyOpts);
+
+    await this.policy.attach(policy.policyId, opts.to);
+
+    const fromIdentity = await this.identity.get(opts.from);
+    const intent = await this.intent.request({
+      actor: { type: fromIdentity.type, address: fromIdentity.address },
+      action: 'delegate',
+      params: {
+        delegateTo: opts.to,
+        policyId: policy.policyId,
+        scope: opts.scope,
+      },
+      approval: 'auto',
+    });
+
+    return { policy, intent };
   }
 
   // ===========================================================================

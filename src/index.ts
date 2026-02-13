@@ -44,6 +44,30 @@ export { Invariance, SDK_VERSION } from './core/InvarianceClient.js';
 export type { VerifyProxy } from './core/InvarianceClient.js';
 
 // ============================================================================
+// Convenience Types
+// ============================================================================
+
+export type {
+  QuickSetupOptions,
+  QuickSetupResult,
+  HireAndFundOptions,
+  BatchRegisterOptions,
+  BatchRegisterEntry,
+  BatchAgentOptions,
+  ExecuteAndLogOptions,
+  ExecuteAndLogResult,
+  RecurringPaymentOptions,
+  CreateMultiSigOptions,
+  SetupRateLimitedAgentOptions,
+  HireAndReviewOptions,
+  HireAndReviewResult,
+  AuditOptions,
+  AuditReport,
+  DelegateOptions,
+  DelegateResult,
+} from './core/convenience-types.js';
+
+// ============================================================================
 // Core Infrastructure
 // ============================================================================
 
