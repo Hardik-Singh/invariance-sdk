@@ -74,7 +74,7 @@ export class ReputationEngine {
   /** Lazily initialize the indexer client */
   private getIndexer(): IndexerClient {
     if (!this.indexer) {
-      this.indexer = new IndexerClient(this.contracts.getApiBaseUrl());
+      this.indexer = new IndexerClient(this.contracts.getApiBaseUrl(), this.contracts.getApiKey());
     }
     return this.indexer;
   }

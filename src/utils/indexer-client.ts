@@ -15,9 +15,11 @@ const MAX_RETRIES = 1;
  */
 export class IndexerClient {
   private readonly baseUrl: string;
+  private readonly apiKey: string | undefined;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, apiKey?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.apiKey = apiKey;
   }
 
   /**
@@ -45,7 +47,7 @@ export class IndexerClient {
 
         const response = await fetch(url.toString(), {
           signal: controller.signal,
-          headers: { 'Accept': 'application/json' },
+          headers: this.buildHeaders(),
         });
 
         clearTimeout(timeout);
@@ -89,6 +91,7 @@ export class IndexerClient {
 
       const response = await fetch(`${this.baseUrl}/health`, {
         signal: controller.signal,
+        headers: this.buildHeaders(),
       });
 
       clearTimeout(timeout);
@@ -96,5 +99,14 @@ export class IndexerClient {
     } catch {
       return false;
     }
+  }
+
+  /** Build common headers, including api key when configured. */
+  private buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Accept': 'application/json' };
+    if (this.apiKey) {
+      headers['x-api-key'] = this.apiKey;
+    }
+    return headers;
   }
 }
