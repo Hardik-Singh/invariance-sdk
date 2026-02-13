@@ -194,6 +194,28 @@ function createMockContractFactory() {
         },
       ],
     })),
+    getTransactionReceipt: vi.fn(async ({ hash }: { hash: string }) => ({
+      status: 'success' as const,
+      transactionHash: hash,
+      blockNumber: 12345n,
+      gasUsed: 50000n,
+      logs: [
+        {
+          topics: [
+            '0x' + 'ee'.repeat(32),
+            MOCK_ENTRY_ID,
+          ] as readonly string[],
+          data: '0x' as `0x${string}`,
+          address: '0x5555555555555555555555555555555555555555' as `0x${string}`,
+          blockNumber: 12345n,
+          transactionHash: hash as `0x${string}`,
+          logIndex: 0,
+          blockHash: '0x' + 'ff'.repeat(32) as `0x${string}`,
+          transactionIndex: 0,
+          removed: false,
+        },
+      ],
+    })),
     getGasPrice: vi.fn(async () => 1000000000n),
     getBalance: vi.fn(async () => 1000000000000000000n),
     watchContractEvent: vi.fn(() => vi.fn()),

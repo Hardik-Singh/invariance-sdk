@@ -32,8 +32,11 @@
     "base",
     "web3"
   ],
-  "author": "",
+  "author": "Invariance",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Hardik-Singh/invariance/issues"
+  },
   "dependencies": {
     "@invariance/common": "workspace:*",
     "dotenv": "^16.4.0",

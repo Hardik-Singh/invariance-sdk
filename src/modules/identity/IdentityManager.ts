@@ -408,7 +408,6 @@ export class IdentityManager {
     }
 
     // On-chain fallback: indexer unavailable, return empty
-    console.warn('[Invariance] identity.list(): indexer unavailable, returning empty results');
     return [];
   }
 
