@@ -5,4 +5,5 @@ export { InvarianceIntentAbi } from './InvarianceIntent.js';
 export { InvarianceEscrowAbi } from './InvarianceEscrow.js';
 export { InvarianceReviewAbi } from './InvarianceReview.js';
 export { InvarianceRegistryAbi } from './InvarianceRegistry.js';
+export { InvarianceHireAbi } from './InvarianceHire.js';
 export { MockUSDCAbi } from './MockUSDC.js';

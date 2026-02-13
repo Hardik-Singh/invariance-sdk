@@ -75,6 +75,7 @@ export { EventLedger } from './modules/ledger/EventLedger.js';
 export { Verifier } from './modules/verify/Verifier.js';
 export { ReputationEngine } from './modules/reputation/ReputationEngine.js';
 export { GasManager } from './modules/gas/GasManager.js';
+export { MarketplaceKit } from './modules/marketplace/MarketplaceKit.js';
 
 // ============================================================================
 // Module Types — Identity
@@ -204,6 +205,27 @@ export type {
 } from './modules/reputation/types.js';
 
 // ============================================================================
+// Module Types — Marketplace
+// ============================================================================
+
+export type {
+  RegisterListingOptions,
+  Listing,
+  ListingCategory,
+  PricingModel,
+  SearchQuery,
+  SearchResults,
+  HireOptions,
+  HireResult,
+  CompletionResult,
+} from './modules/marketplace/types.js';
+export type {
+  UpdateListingOptions,
+  FeaturedOptions,
+  CompleteHireOptions,
+} from './modules/marketplace/types.js';
+
+// ============================================================================
 // Module Types — Gas
 // ============================================================================
 
@@ -271,3 +293,9 @@ export type { PaymentOptions, RequirePaymentConfig, PaymentGatedAuthorization } 
 // ============================================================================
 
 export { verifyWebhookSignature } from './utils/webhook.js';
+
+// ============================================================================
+// Wallet Utilities (re-exported from viem for convenience)
+// ============================================================================
+
+export { privateKeyToAccount, generatePrivateKey, mnemonicToAccount } from 'viem/accounts';

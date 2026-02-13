@@ -1,5 +1,6 @@
 import type { InvarianceConfig } from '@invariance/common';
 import { base, baseSepolia } from 'viem/chains';
+import { privateKeyToAccount, generatePrivateKey, mnemonicToAccount } from 'viem/accounts';
 import { ContractFactory } from './ContractFactory.js';
 import { InvarianceEventEmitter } from './EventEmitter.js';
 import { Telemetry } from './Telemetry.js';
@@ -16,6 +17,7 @@ import { GasManager } from '../modules/gas/GasManager.js';
 import { X402Manager } from '../modules/x402/X402Manager.js';
 import { ERC8004Manager } from '../modules/erc8004/ERC8004Manager.js';
 import { InvarianceBridge } from '../modules/erc8004/InvarianceBridge.js';
+import { MarketplaceKit } from '../modules/marketplace/MarketplaceKit.js';
 import type { VerificationResult } from '../modules/verify/types.js';
 
 import { createRequire } from 'node:module';
@@ -99,6 +101,61 @@ export class Invariance {
   private _x402?: X402Manager;
   private _erc8004?: ERC8004Manager;
   private _erc8004Bridge?: InvarianceBridge;
+  private _marketplace?: MarketplaceKit;
+
+  // ===========================================================================
+  // Static Factory Methods
+  // ===========================================================================
+
+  /**
+   * Generate a fresh random wallet and return an Invariance client.
+   *
+   * @example
+   * ```typescript
+   * const inv = Invariance.createRandom({ chain: 'base-sepolia' });
+   * console.log(inv.wallet.getAddress());
+   * ```
+   */
+  static createRandom(config?: Partial<InvarianceConfig>): Invariance {
+    const key = generatePrivateKey();
+    const account = privateKeyToAccount(key);
+    return new Invariance({ ...config, signer: account });
+  }
+
+  /**
+   * Create a client from a hex private key string.
+   *
+   * @param key - Hex private key (with or without 0x prefix)
+   * @param config - Optional SDK configuration overrides
+   *
+   * @example
+   * ```typescript
+   * const inv = Invariance.fromPrivateKey('0xabc...', { chain: 'base-sepolia' });
+   * ```
+   */
+  static fromPrivateKey(key: string, config?: Partial<InvarianceConfig>): Invariance {
+    const hex = key.startsWith('0x') ? key : `0x${key}`;
+    const account = privateKeyToAccount(hex as `0x${string}`);
+    const inv = new Invariance({ ...config, signer: account });
+    inv.wallet.setPrivateKey(hex);
+    return inv;
+  }
+
+  /**
+   * Create a client from a BIP-39 mnemonic phrase.
+   *
+   * @param phrase - 12 or 24 word mnemonic
+   * @param config - Optional SDK configuration overrides
+   *
+   * @example
+   * ```typescript
+   * const inv = Invariance.fromMnemonic('abandon abandon ... about', { chain: 'base' });
+   * ```
+   */
+  static fromMnemonic(phrase: string, config?: Partial<InvarianceConfig>): Invariance {
+    const account = mnemonicToAccount(phrase);
+    return new Invariance({ ...config, signer: account });
+  }
 
   constructor(config?: Partial<InvarianceConfig>) {
     const envConfig = loadEnvConfig();
@@ -126,6 +183,14 @@ export class Invariance {
       const chain = merged.chain === 'base' ? base : baseSepolia;
       const rpcUrl = this.contracts.getRpcUrl();
       this._wallet = new WalletManager(this.contracts, this.telemetry, this.config);
+
+      // Store private key if it was loaded from env
+      const envKey = process.env['INVARIANCE_PRIVATE_KEY'];
+      if (envKey) {
+        const hex = envKey.startsWith('0x') ? envKey : `0x${envKey}`;
+        this._wallet.setPrivateKey(hex);
+      }
+
       this._walletInitPromise = this._wallet.initFromSigner(merged.signer, rpcUrl, chain).then(() => {
         if (this._wallet!.isConnected()) {
           this.contracts.setClients(this._wallet!.getPublicClient(), this._wallet!.getWalletClient());
@@ -137,10 +202,28 @@ export class Invariance {
   /**
    * Ensure wallet initialization is complete.
    * Call this before using any contract methods.
+   *
+   * @remarks
+   * This is called automatically when accessing module getters,
+   * so manual calls are rarely needed.
    */
   async ensureWalletInit(): Promise<void> {
     if (this._walletInitPromise) {
       await this._walletInitPromise;
+    }
+  }
+
+  /**
+   * Internal: ensure wallet init is complete.
+   * Called automatically by module getters.
+   * @internal
+   */
+  private _autoInit(): void {
+    if (this._walletInitPromise) {
+      // Fire-and-forget: the promise resolves before any contract call
+      // because initFromSigner runs synchronously for local accounts.
+      // For async providers (EIP-1193), callers should still await ensureWalletInit().
+      void this._walletInitPromise;
     }
   }
 
@@ -162,12 +245,23 @@ export class Invariance {
   }
 
   /**
+   * Ensure wallet is initialized before performing contract operations.
+   * Automatically called internally; rarely needed by consumers.
+   * @internal
+   */
+  async ready(): Promise<this> {
+    await this.ensureWalletInit();
+    return this;
+  }
+
+  /**
    * Wallet management module.
    *
    * Key management, embedded wallets via Privy.
-   * 6 methods: create, connect, get, fund, balance, export
+   * 9 methods: create, connect, get, fund, balance, export, exportPrivateKey, signMessage, disconnect
    */
   get wallet(): WalletManager {
+    this._autoInit();
     if (!this._wallet) {
       this._wallet = new WalletManager(this.contracts, this.telemetry, this.config);
     }
@@ -339,6 +433,19 @@ export class Invariance {
       );
     }
     return this._erc8004Bridge;
+  }
+
+  /**
+   * Marketplace Kit module.
+   *
+   * Pre-built primitives for verified marketplaces: list, search, hire, complete.
+   * 8 methods: register, update, deactivate, search, get, featured, hire, complete
+   */
+  get marketplace(): MarketplaceKit {
+    if (!this._marketplace) {
+      this._marketplace = new MarketplaceKit(this.contracts, this.events, this.telemetry);
+    }
+    return this._marketplace;
   }
 
   // ===========================================================================

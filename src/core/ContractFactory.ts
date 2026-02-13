@@ -18,10 +18,11 @@ import {
   InvarianceEscrowAbi,
   InvarianceReviewAbi,
   InvarianceRegistryAbi,
+  InvarianceHireAbi,
   MockUSDCAbi,
 } from '../contracts/abis/index.js';
 
-type ContractName = 'identity' | 'policy' | 'ledger' | 'intent' | 'escrow' | 'review' | 'registry' | 'mockUsdc';
+type ContractName = 'identity' | 'policy' | 'ledger' | 'intent' | 'escrow' | 'review' | 'registry' | 'hire' | 'mockUsdc';
 
 const ABI_MAP = {
   identity: InvarianceIdentityAbi,
@@ -31,6 +32,7 @@ const ABI_MAP = {
   escrow: InvarianceEscrowAbi,
   review: InvarianceReviewAbi,
   registry: InvarianceRegistryAbi,
+  hire: InvarianceHireAbi,
   mockUsdc: MockUSDCAbi,
 } as const;
 
@@ -42,6 +44,7 @@ const ADDRESS_KEY_MAP: Record<ContractName, keyof ContractAddresses> = {
   escrow: 'escrow',
   review: 'review',
   registry: 'registry',
+  hire: 'hire',
   mockUsdc: 'usdc',
 };
 
