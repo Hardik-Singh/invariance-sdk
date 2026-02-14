@@ -43,6 +43,7 @@ export class WalletManager {
   private publicClient: PublicClient | null = null;
   private address: `0x${string}` | null = null;
   private detectedProvider: WalletProvider = 'raw';
+  private _privateKey: string | null = null;
 
   constructor(
     contracts: ContractFactory,
@@ -52,6 +53,22 @@ export class WalletManager {
     this.contracts = contracts;
     this.telemetry = telemetry;
     this.config = config;
+  }
+
+  /**
+   * Store a private key for later retrieval via `exportPrivateKey()`.
+   * @param key - Hex-encoded private key (with 0x prefix)
+   */
+  setPrivateKey(key: string): void {
+    this._privateKey = key;
+  }
+
+  /**
+   * Return the stored private key, if one was set.
+   * @returns The hex-encoded private key, or null if not available
+   */
+  exportPrivateKey(): string | null {
+    return this._privateKey;
   }
 
   /**
@@ -390,7 +407,7 @@ export class WalletManager {
     }
 
     return {
-      usdc: usdcBalance,
+      usdc: usdcBalance ?? '0.000000',
       eth: formatEther(ethBalance),
       address: addr,
     };
