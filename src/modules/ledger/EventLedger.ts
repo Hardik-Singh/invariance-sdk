@@ -7,6 +7,7 @@ import { InvarianceError } from '../../errors/InvarianceError.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
 import { mapLedgerRow } from '../../utils/indexer-mappers.js';
 import {
+  toBytes32,
   fromBytes32,
   waitForReceipt,
   mapContractError,
@@ -122,7 +123,6 @@ export class EventLedger {
     try {
       const contract = this.contracts.getContract('ledger');
       const identityContract = this.contracts.getContract('identity');
-      const publicClient = this.contracts.getPublicClient();
 
       // Resolve actor identity ID
       const resolveFn = identityContract.read['resolve'];
@@ -161,8 +161,12 @@ export class EventLedger {
       if (!logFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'log function not found');
       const txHash = await logFn([logInput]);
 
-      const receipt = await waitForReceipt(publicClient, txHash);
-      const entryId = parseEntryIdFromLogs(receipt.logs);
+      const optimistic = this.contracts.getConfirmation() === 'optimistic';
+      const receiptClient = this.contracts.getReceiptClient();
+      const receipt = await waitForReceipt(receiptClient, txHash, { optimistic });
+      const entryId = optimistic
+        ? toBytes32(txHash)
+        : parseEntryIdFromLogs(receipt.logs);
 
       const explorerBase = this.contracts.getExplorerBaseUrl();
       const result: LedgerEntry = {
@@ -215,7 +219,6 @@ export class EventLedger {
     try {
       const contract = this.contracts.getContract('ledger');
       const identityContract = this.contracts.getContract('identity');
-      const publicClient = this.contracts.getPublicClient();
 
       // Prepare all log inputs
       const logInputs: OnChainLogInput[] = [];
@@ -254,13 +257,17 @@ export class EventLedger {
       if (!logBatchFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'logBatch function not found');
       const txHash = await logBatchFn([logInputs]);
 
-      const receipt = await waitForReceipt(publicClient, txHash);
+      const optimistic = this.contracts.getConfirmation() === 'optimistic';
+      const receiptClient = this.contracts.getReceiptClient();
+      const receipt = await waitForReceipt(receiptClient, txHash, { optimistic });
 
       // Parse real entry IDs from contract logs (BatchLogged/EntryLogged events)
       const parsedEntryIds: string[] = [];
-      for (const log of receipt.logs) {
-        if (log.topics[1]) {
-          parsedEntryIds.push(fromBytes32(log.topics[1] as `0x${string}`));
+      if (!optimistic) {
+        for (const log of receipt.logs) {
+          if (log.topics[1]) {
+            parsedEntryIds.push(fromBytes32(log.topics[1] as `0x${string}`));
+          }
         }
       }
 
