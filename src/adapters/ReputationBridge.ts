@@ -94,7 +94,7 @@ export class ReputationBridge {
    */
   async getAggregatedScore(identityId: string): Promise<AggregatedReputation> {
     const onChain = await this.client.reputation.get(identityId);
-    const invarianceScore = onChain.overall;
+    const invarianceScore = onChain.scores.overall;
 
     const externalScores = this.getExternalScores(identityId);
     const externalAverage = externalScores.length > 0
@@ -130,8 +130,9 @@ export class ReputationBridge {
     this.importExternalScore(identityId, score);
 
     const attestation = await this.client.identity.attest(identityId, {
-      key: `reputation:${score.platform}`,
-      value: JSON.stringify({
+      claim: `reputation:${score.platform}`,
+      attester: identityId,
+      evidence: JSON.stringify({
         score: score.score,
         proofUrl: score.proofUrl,
         fetchedAt: score.fetchedAt,

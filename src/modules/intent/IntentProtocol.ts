@@ -4,6 +4,7 @@ import type { Telemetry } from '../../core/Telemetry.js';
 import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
+import { mapIntentRow } from '../../utils/indexer-mappers.js';
 import { X402Manager } from '../x402/X402Manager.js';
 import { stringToHex } from 'viem';
 import { parseBaseUnitAmount } from '../../utils/amounts.js';
@@ -575,18 +576,20 @@ export class IntentProtocol {
         return [];
       }
 
+      const pageSize = Math.max(1, filters?.limit ?? 50);
+      const offset = Math.max(0, filters?.offset ?? 0);
+      const page = Math.floor(offset / pageSize) + 1;
       const params: Record<string, string | number | undefined> = {
-        actor: filters?.actor,
+        actorAddress: filters?.actor,
         action: Array.isArray(filters?.action) ? filters.action.join(',') : filters?.action,
         status: filters?.status,
-        from: typeof filters?.from === 'string' ? filters.from : filters?.from?.toString(),
-        to: typeof filters?.to === 'string' ? filters.to : filters?.to?.toString(),
-        limit: filters?.limit ?? 50,
-        offset: filters?.offset ?? 0,
+        page,
+        pageSize,
       };
 
-      const data = await indexer.get<IntentResult[]>('/intents', params);
-      return data;
+      const rows = await indexer.get<Record<string, unknown>[]>('/intents', params);
+      const explorerBase = this.contracts.getExplorerBaseUrl();
+      return rows.map((row) => mapIntentRow(row, explorerBase));
     } catch (err) {
       this.telemetry.track('intent.history.error', { error: String(err) });
       return [];

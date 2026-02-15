@@ -15,6 +15,7 @@ import {
   enumToActorType,
 } from '../../utils/contract-helpers.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
+import { mapPolicyRow } from '../../utils/indexer-mappers.js';
 import { serializeRules, deserializeRules } from './rule-serializer.js';
 import { X402Manager } from '../x402/X402Manager.js';
 import { parseBaseUnitAmount } from '../../utils/amounts.js';
@@ -351,15 +352,17 @@ export class PolicyEngine {
 
     if (available) {
       try {
+        const pageSize = Math.max(1, filters?.limit ?? 20);
+        const offset = Math.max(0, filters?.offset ?? 0);
+        const page = Math.floor(offset / pageSize) + 1;
         const params: Record<string, string | number | undefined> = {
-          identityId: filters?.identityId,
-          actor: filters?.actor,
           state: filters?.state,
-          limit: filters?.limit,
-          offset: filters?.offset,
+          creator: filters?.actor,
+          page,
+          pageSize,
         };
-        const data = await indexer.get<SpecPolicy[]>('/policies', params);
-        return data;
+        const rows = await indexer.get<Record<string, unknown>[]>('/policies', params);
+        return rows.map((row) => mapPolicyRow(row));
       } catch (err) {
         this.telemetry.track('policy.list.error', { error: String(err) });
       }

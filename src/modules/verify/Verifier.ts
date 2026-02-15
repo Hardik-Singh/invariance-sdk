@@ -244,17 +244,21 @@ export class Verifier {
 
       if (available) {
         const params: Record<string, string | number | undefined> = {
-          actor: opts.actor,
+          actorAddress: opts.actor,
           action: opts.action,
           from: typeof opts.from === 'string' ? opts.from : opts.from?.toString(),
           to: typeof opts.to === 'string' ? opts.to : opts.to?.toString(),
-          limit: 1,
+          page: 1,
+          pageSize: 1,
         };
 
         try {
-          const entries = await indexer.get<Array<{ txHash: string }>>('/ledger/entries', params);
-          if (entries.length > 0 && entries[0]!.txHash) {
-            return this.verify(entries[0]!.txHash);
+          const entries = await indexer.get<Array<Record<string, unknown>>>('/ledger', params);
+          if (entries.length > 0) {
+            const txHash = (entries[0]!['txHash'] ?? entries[0]!['tx_hash']) as string | undefined;
+            if (txHash) {
+              return this.verify(txHash);
+            }
           }
         } catch {
           // Fall through to error
@@ -551,36 +555,37 @@ export class Verifier {
 
       if (available) {
         try {
-          const entries = await indexer.get<Array<{
-            entryId: string;
-            action: string;
-            actorAddress: string;
-            actorType: string;
-            timestamp: number;
-            blockNumber: number;
-            actorSignature: string;
-            platformSignature: string;
-            metadataHash: string;
-            txHash: string;
-          }>>('/ledger/entries', { proofHash, limit: 1 });
+          const entries = await indexer.get<Array<Record<string, unknown>>>('/ledger', {
+            proofHash,
+            page: 1,
+            pageSize: 1,
+          });
 
           if (entries.length > 0) {
             const entry = entries[0]!;
+            const actorAddress = (entry['actorAddress'] ?? entry['actor_address']) as string | undefined;
+            const actorType = (entry['actorType'] ?? entry['actor_type']) as string | undefined;
+            const timestamp = (entry['timestamp'] ?? entry['created_at']) as string | number | undefined;
+            const blockNumber = (entry['blockNumber'] ?? entry['block_number']) as number | string | undefined;
+            const metadataHash = (entry['metadataHash'] ?? entry['metadata_hash']) as string | undefined;
+            const actorSignature = (entry['actorSignature'] ?? entry['actor_signature']) as string | undefined;
+            const platformSignature = (entry['platformSignature'] ?? entry['platform_signature']) as string | undefined;
+
             return {
               proofHash,
               actor: {
-                type: (entry.actorType as 'agent' | 'human' | 'device' | 'service') || 'agent',
-                address: entry.actorAddress,
+                type: (actorType as 'agent' | 'human' | 'device' | 'service') || 'agent',
+                address: actorAddress ?? '',
               },
-              action: entry.action,
-              timestamp: entry.timestamp,
-              blockNumber: entry.blockNumber,
+              action: String(entry['action'] ?? ''),
+              timestamp: typeof timestamp === 'string' ? Date.parse(timestamp) : Number(timestamp ?? 0),
+              blockNumber: Number(blockNumber ?? 0),
               signatures: {
-                actor: entry.actorSignature,
-                platform: entry.platformSignature,
-                valid: entry.actorSignature.length > 2,
+                actor: actorSignature ?? '',
+                platform: platformSignature ?? '',
+                valid: (actorSignature ?? '').length > 2,
               },
-              metadataHash: entry.metadataHash,
+              metadataHash: metadataHash ?? '',
               raw: JSON.stringify(entry),
               verified: true,
             };

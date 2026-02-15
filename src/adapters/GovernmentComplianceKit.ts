@@ -120,7 +120,14 @@ export class GovernmentComplianceKit {
    * Register an agency identity with role-based permission matrix.
    */
   async setupAgency(opts: SetupAgencyOptions): Promise<AgencySetupResult> {
-    const identity = await this.client.identity.register(opts.identity);
+    const { metadata, ...restIdentity } = opts.identity;
+    const identityMetadata = metadata
+      ? Object.fromEntries(Object.entries(metadata).map(([k, v]) => [k, String(v)]))
+      : undefined;
+
+    const identity = await this.client.identity.register(
+      identityMetadata ? { ...restIdentity, metadata: identityMetadata } : { ...restIdentity },
+    );
 
     const policy = await this.client.policy.create({
       name: `agency-${opts.name}`,
@@ -157,9 +164,14 @@ export class GovernmentComplianceKit {
     signers: string[],
     threshold: number,
   ): Promise<MilestoneEscrowResult> {
+    if (!signers.length) {
+      throw new Error('signers array must contain at least one signer');
+    }
+    const primarySigner = signers[0]!;
+
     const escrow = await this.client.createMultiSig({
       amount: totalAmount,
-      recipient: { type: 'service', address: signers[0] },
+      recipient: { type: 'service', address: primarySigner },
       signers,
       threshold,
       timeout: 'P90D',
@@ -176,7 +188,7 @@ export class GovernmentComplianceKit {
     for (const milestone of milestones) {
       await this.client.ledger.log({
         action: 'milestone-registered',
-        actor: { type: 'service' as const, address: signers[0] },
+        actor: { type: 'service' as const, address: primarySigner },
         category: 'custom',
         metadata: {
           contractName,
@@ -253,8 +265,9 @@ export class GovernmentComplianceKit {
     details: Record<string, unknown>,
   ): Promise<{ txHash: string }> {
     const attestation = await this.client.identity.attest(agencyIdentityId, {
-      key: `compliance:${regulation}`,
-      value: JSON.stringify({ regulation, attestedAt: Date.now(), ...details }),
+      claim: `compliance:${regulation}`,
+      attester: agencyIdentityId,
+      evidence: JSON.stringify({ regulation, attestedAt: Date.now(), ...details }),
     });
 
     return { txHash: attestation.txHash };

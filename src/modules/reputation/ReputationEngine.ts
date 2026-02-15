@@ -4,6 +4,7 @@ import type { Telemetry } from '../../core/Telemetry.js';
 import { ErrorCode, type OnChainMetrics } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
+import { mapReviewRow, toTimestamp } from '../../utils/indexer-mappers.js';
 import {
   toBytes32,
   fromBytes32,
@@ -310,18 +311,20 @@ export class ReputationEngine {
         return { reviews: [], total: 0, page: 1 };
       }
 
+      const pageSize = Math.max(1, opts?.limit ?? 10);
+      const offset = Math.max(0, opts?.offset ?? 0);
+      const page = Math.floor(offset / pageSize) + 1;
       const params: Record<string, string | number | undefined> = {
-        target: address,
-        limit: opts?.limit ?? 10,
-        offset: opts?.offset ?? 0,
-        sortBy: opts?.sortBy ?? 'newest',
+        page,
+        pageSize,
       };
 
-      const data = await indexer.get<{ reviews: Review[]; total: number }>('/reviews', params);
+      const { data: rows, total } = await indexer.getPaginated<Record<string, unknown>>(`/reputation/${address}/reviews`, params);
+      const explorerBase = this.contracts.getExplorerBaseUrl();
       return {
-        reviews: data.reviews,
-        total: data.total,
-        page: Math.floor((opts?.offset ?? 0) / (opts?.limit ?? 10)) + 1,
+        reviews: rows.map((row) => mapReviewRow(row, explorerBase)),
+        total,
+        page,
       };
     } catch {
       return { reviews: [], total: 0, page: 1 };
@@ -509,14 +512,21 @@ export class ReputationEngine {
         return { address, entries: [] };
       }
 
+      const pageSize = Math.max(1, opts?.limit ?? 100);
       const params: Record<string, string | number | undefined> = {
+        page: 1,
+        pageSize,
         from: typeof opts?.from === 'string' ? opts.from : opts?.from?.toString(),
         to: typeof opts?.to === 'string' ? opts.to : opts?.to?.toString(),
-        limit: opts?.limit ?? 100,
       };
 
-      const data = await indexer.get<ScoreHistory>(`/reputation/history/${address}`, params);
-      return data;
+      const rows = await indexer.get<Record<string, unknown>[]>(`/reputation/${address}/history`, params);
+      const entries = rows.map((row) => ({
+        timestamp: toTimestamp(row['timestamp']),
+        overall: typeof row['overall'] === 'number' ? row['overall'] as number : 0,
+        event: String(row['event'] ?? ''),
+      }));
+      return { address, entries };
     } catch {
       return { address, entries: [] };
     }

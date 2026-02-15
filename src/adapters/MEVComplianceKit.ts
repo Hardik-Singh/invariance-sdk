@@ -78,7 +78,13 @@ export class MEVComplianceKit {
    * Register a MEV bot with beneficiary gates and extraction limits.
    */
   async registerBot(opts: RegisterBotOptions): Promise<RegisteredBot> {
-    const identity = await this.client.identity.register(opts.identity);
+    const { metadata, ...restIdentity } = opts.identity;
+    const identityMetadata = metadata
+      ? Object.fromEntries(Object.entries(metadata).map(([k, v]) => [k, String(v)]))
+      : undefined;
+    const identity = await this.client.identity.register(
+      identityMetadata ? { ...restIdentity, metadata: identityMetadata } : restIdentity,
+    );
 
     const rules: PolicyRule[] = [];
     if (opts.maxExtractionPerTx) {
@@ -100,8 +106,9 @@ export class MEVComplianceKit {
     this.beneficiaryRegistry.set(identity.identityId, new Set(opts.beneficiaries));
 
     await this.client.identity.attest(identity.identityId, {
-      key: 'mev:beneficiaries',
-      value: JSON.stringify(opts.beneficiaries),
+      claim: 'mev:beneficiaries',
+      attester: identity.identityId,
+      evidence: JSON.stringify(opts.beneficiaries),
     });
 
     return { identity, policy, beneficiaries: opts.beneficiaries };

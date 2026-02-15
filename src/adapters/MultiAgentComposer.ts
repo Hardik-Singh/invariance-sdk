@@ -121,7 +121,7 @@ export class MultiAgentComposer {
     // Create multi-sig escrow for shared budget
     const escrow = await this.client.createMultiSig({
       amount: opts.budget,
-      recipient: { type: 'agent', address: opts.signers[0] },
+      recipient: { type: 'agent', address: opts.signers[0] ?? '' },
       signers: opts.signers,
       threshold: opts.threshold,
       timeout: opts.timeout ?? 'P30D',
@@ -139,7 +139,13 @@ export class MultiAgentComposer {
         roleRules.push({ type: 'action-whitelist', config: { actions: role.allowedActions } });
       }
 
-      const identity = await this.client.identity.register(member.identity);
+      const { metadata: rawMeta, ...identityBase } = member.identity;
+      const identityMetadata = rawMeta
+        ? Object.fromEntries(Object.entries(rawMeta).map(([k, v]) => [k, String(v)]))
+        : undefined;
+      const identity = await this.client.identity.register(
+        identityMetadata ? { ...identityBase, metadata: identityMetadata } : identityBase,
+      );
       const rolePolicy = await this.client.policy.create({
         name: `${opts.name}-${member.role}-${member.identity.label}`,
         rules: roleRules,
@@ -167,7 +173,13 @@ export class MultiAgentComposer {
     role: CrewRole,
     crewName: string,
   ): Promise<{ identity: Identity; policy: SpecPolicy }> {
-    const identity = await this.client.identity.register(member.identity);
+    const { metadata: rawMeta2, ...identityBase2 } = member.identity;
+    const identityMetadata = rawMeta2
+      ? Object.fromEntries(Object.entries(rawMeta2).map(([k, v]) => [k, String(v)]))
+      : undefined;
+    const identity = await this.client.identity.register(
+      identityMetadata ? { ...identityBase2, metadata: identityMetadata } : identityBase2,
+    );
     const roleRules: PolicyRule[] = [...role.rules];
     if (role.maxSpend) {
       roleRules.push({ type: 'max-spend', config: { amount: role.maxSpend, period: '24h' } });

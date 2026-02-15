@@ -76,8 +76,9 @@ export class SocialGraphAdapter {
     }
 
     const attestation = await this.client.identity.attest(fromId, {
-      key: `social:${relationship}:${toId}`,
-      value: JSON.stringify({ relationship, strength, target: toId }),
+      claim: `social:${relationship}:${toId}`,
+      attester: fromId,
+      evidence: JSON.stringify({ relationship, strength, target: toId }),
     });
 
     const link: SocialLink = {

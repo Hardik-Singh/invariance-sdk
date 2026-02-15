@@ -87,7 +87,7 @@ export class CrossChainEscrow {
       amount: opts.amount,
       recipient: opts.recipient as CreateEscrowOptions['recipient'],
       conditions: {
-        type: 'manual',
+        type: 'task-completion',
         timeout: opts.timeout ?? 'P7D',
       },
     });
@@ -113,12 +113,14 @@ export class CrossChainEscrow {
       policyId,
       actor: actor as Parameters<Invariance['policy']['evaluate']>[0]['actor'],
       action,
-      params,
+      params: params ?? {},
     });
 
-    return {
-      allowed: evaluation.allowed,
-      reason: evaluation.allowed ? undefined : evaluation.reason,
-    };
+    const result: { allowed: boolean; reason?: string } = { allowed: evaluation.allowed };
+    if (!evaluation.allowed) {
+      const reason = evaluation.ruleResults.find((r) => !r.passed)?.detail;
+      if (reason) result.reason = reason;
+    }
+    return result;
   }
 }

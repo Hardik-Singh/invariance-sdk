@@ -16,6 +16,7 @@ import {
   parseListingIdFromLogs,
 } from '../../utils/contract-helpers.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
+import { mapListingRow } from '../../utils/indexer-mappers.js';
 import type {
   RegisterListingOptions,
   Listing,
@@ -363,20 +364,46 @@ export class MarketplaceKit {
 
     if (available) {
       try {
+        const pageSize = Math.max(1, query.pageSize ?? 20);
+        const page = Math.max(1, query.page ?? 1);
         const params: Record<string, string | number | undefined> = {
-          text: query.text,
+          search: query.text,
           category: query.category,
-          actorType: query.actorType,
-          minRating: query.minRating,
           maxPrice: query.maxPrice,
-          sortBy: query.sortBy,
-          page: query.page,
-          pageSize: query.pageSize,
+          page,
+          pageSize,
         };
-        if (query.capabilities?.length) {
-          params['capabilities'] = query.capabilities.join(',');
+
+        const rows = await indexer.get<Record<string, unknown>[]>('/marketplace', params);
+        const explorerBase = this.contracts.getExplorerBaseUrl();
+        const listings = rows.map((row) => mapListingRow(row, explorerBase));
+
+        const facets = listings.reduce((acc, listing) => {
+          acc.categories[listing.category] = (acc.categories[listing.category] ?? 0) + 1;
+          acc.actorTypes[listing.identity.type] = (acc.actorTypes[listing.identity.type] ?? 0) + 1;
+          return acc;
+        }, {
+          categories: {} as Record<string, number>,
+          actorTypes: {} as Record<string, number>,
+          priceRange: { min: '0', max: '0' },
+          avgRating: 0,
+        });
+
+        if (listings.length > 0) {
+          const prices = listings.map((l) => Number(l.pricing.amount)).filter((n) => !Number.isNaN(n));
+          const min = prices.length ? Math.min(...prices) : 0;
+          const max = prices.length ? Math.max(...prices) : 0;
+          facets.priceRange = { min: String(min), max: String(max) };
+          const avg = listings.reduce((sum, l) => sum + (l.reputation.reviewAverage ?? 0), 0) / listings.length;
+          facets.avgRating = Number.isNaN(avg) ? 0 : avg;
         }
-        return await indexer.get<SearchResults>('/listings', params);
+
+        return {
+          listings,
+          total: listings.length,
+          page,
+          facets,
+        };
       } catch {
         // Fall through to empty results
       }
@@ -410,7 +437,8 @@ export class MarketplaceKit {
 
     if (available) {
       try {
-        return await indexer.get<Listing>(`/listings/${listingId}`);
+        const row = await indexer.get<Record<string, unknown>>(`/marketplace/${listingId}`);
+        return mapListingRow(row, this.contracts.getExplorerBaseUrl());
       } catch {
         // Fall through to on-chain
       }
@@ -457,7 +485,9 @@ export class MarketplaceKit {
           category: opts?.category,
           limit: opts?.limit,
         };
-        return await indexer.get<Listing[]>('/listings/featured', params);
+        const rows = await indexer.get<Record<string, unknown>[]>('/marketplace/featured', params);
+        const explorerBase = this.contracts.getExplorerBaseUrl();
+        return rows.map((row) => mapListingRow(row, explorerBase));
       } catch {
         // Fall through to empty
       }

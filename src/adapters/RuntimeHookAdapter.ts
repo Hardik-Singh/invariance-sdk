@@ -97,11 +97,11 @@ export class RuntimeHookAdapter {
           params: fullCtx.params,
         });
 
-        const result: BeforeActionResult = {
-          allowed: evaluation.allowed,
-          reason: evaluation.allowed ? undefined : evaluation.reason,
-          policyId: fullCtx.policyId,
-        };
+        const result: BeforeActionResult = { allowed: evaluation.allowed, policyId: fullCtx.policyId };
+        if (!evaluation.allowed) {
+          const reason = evaluation.ruleResults.find((r) => !r.passed)?.detail;
+          if (reason) result.reason = reason;
+        }
 
         await this.hooks.onAfterEvaluate?.(fullCtx, result);
         return result;
@@ -173,14 +173,16 @@ export class RuntimeHookAdapter {
     try {
       result = await fn();
       if (result && typeof result === 'object' && 'txHash' in result) {
-        txHash = (result as Record<string, unknown>).txHash as string;
+        txHash = (result as Record<string, unknown>)['txHash'] as string | undefined;
       }
     } catch (error) {
       await this.afterAction(ctx, { success: false, error: String(error) });
       throw error;
     }
 
-    const log = await this.afterAction(ctx, { success: true, txHash });
+    const afterOpts: { success: boolean; txHash?: string } = { success: true };
+    if (txHash) afterOpts.txHash = txHash;
+    const log = await this.afterAction(ctx, afterOpts);
     return { result, log };
   }
 }

@@ -13,6 +13,7 @@ import {
   mapContractError,
 } from '../../utils/contract-helpers.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
+import { mapIdentityRow } from '../../utils/indexer-mappers.js';
 import type {
   RegisterIdentityOptions,
   Identity,
@@ -393,15 +394,19 @@ export class IdentityManager {
 
     if (available) {
       try {
+        const pageSize = Math.max(1, filters?.limit ?? 20);
+        const offset = Math.max(0, filters?.offset ?? 0);
+        const page = Math.floor(offset / pageSize) + 1;
         const params: Record<string, string | number | undefined> = {
-          type: filters?.type,
+          actorType: filters?.type,
           status: filters?.status,
           owner: filters?.owner,
-          limit: filters?.limit,
-          offset: filters?.offset,
+          page,
+          pageSize,
         };
-        const data = await indexer.get<Identity[]>('/identities', params);
-        return data;
+        const rows = await indexer.get<Record<string, unknown>[]>('/identities', params);
+        const explorerBase = this.contracts.getExplorerBaseUrl();
+        return rows.map((row) => mapIdentityRow(row, explorerBase));
       } catch {
         // Fall through to on-chain fallback
       }

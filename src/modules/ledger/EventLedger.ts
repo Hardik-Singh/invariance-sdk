@@ -5,6 +5,7 @@ import { ErrorCode } from '@invariance/common';
 import type { Unsubscribe } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
+import { mapLedgerRow } from '../../utils/indexer-mappers.js';
 import {
   fromBytes32,
   waitForReceipt,
@@ -316,21 +317,22 @@ export class EventLedger {
         return [];
       }
 
+      const pageSize = Math.max(1, filters.limit ?? 100);
+      const offset = Math.max(0, filters.offset ?? 0);
+      const page = Math.floor(offset / pageSize) + 1;
       const params: Record<string, string | number | undefined> = {
-        actor: filters.actor,
-        actorType: filters.actorType,
+        actorAddress: filters.actor,
         action: Array.isArray(filters.action) ? filters.action.join(',') : filters.action,
         category: filters.category,
         from: typeof filters.from === 'string' ? filters.from : filters.from?.toString(),
         to: typeof filters.to === 'string' ? filters.to : filters.to?.toString(),
-        limit: filters.limit ?? 100,
-        offset: filters.offset ?? 0,
-        orderBy: filters.orderBy ?? 'timestamp',
-        order: filters.order ?? 'desc',
+        page,
+        pageSize,
       };
 
-      const data = await indexer.get<LedgerEntry[]>('/ledger/entries', params);
-      return data;
+      const rows = await indexer.get<Record<string, unknown>[]>('/ledger', params);
+      const explorerBase = this.contracts.getExplorerBaseUrl();
+      return rows.map((row) => mapLedgerRow(row, explorerBase));
     } catch {
       return [];
     }

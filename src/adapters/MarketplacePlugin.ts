@@ -68,22 +68,29 @@ export class MarketplacePlugin {
       const identityId = typeof listing.identity === 'string'
         ? listing.identity
         : listing.identity.identityId;
-      badge = await this.client.reputation.badge(identityId);
+      const maybeBadge = await this.client.reputation.badge(identityId);
+      badge = maybeBadge ?? undefined;
     }
 
-    return { listing, badge };
+    const result: PublishResult = { listing };
+    if (badge) result.badge = badge;
+    return result;
   }
 
   /**
    * Hire an agent with automatic escrow funding.
    */
   async hireWithEscrow(opts: HireWithEscrowOptions): Promise<HireResult> {
-    return this.client.hireAndFund({
+    const deadline = opts.task.deadline ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const hireOpts: Parameters<Invariance['hireAndFund']>[0] = {
       listingId: opts.listingId,
-      task: opts.task,
+      task: { ...opts.task, deadline },
       payment: opts.payment,
-      fundAmount: opts.fundAmount,
-    });
+    };
+    if (opts.fundAmount) hireOpts.fundAmount = opts.fundAmount;
+
+    return this.client.hireAndFund(hireOpts);
   }
 
   /**
@@ -98,12 +105,15 @@ export class MarketplacePlugin {
         ? listing.identity
         : listing.identity.identityId;
       try {
-        badge = await this.client.reputation.badge(identityId);
+        const maybeBadge = await this.client.reputation.badge(identityId);
+        badge = maybeBadge ?? undefined;
       } catch {
         // No badge available
       }
     }
 
-    return { listing, badge };
+    const result: { listing: Listing; badge?: Badge } = { listing };
+    if (badge) result.badge = badge;
+    return result;
   }
 }

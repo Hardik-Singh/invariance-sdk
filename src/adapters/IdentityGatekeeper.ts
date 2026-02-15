@@ -98,8 +98,9 @@ export class IdentityGatekeeper {
     const expiresAt = now + validityMs;
 
     const attestation = await this.client.identity.attest(identityId, {
-      key: `verification:${platform}`,
-      value: JSON.stringify({
+      claim: `verification:${platform}`,
+      attester: identityId,
+      evidence: JSON.stringify({
         platform,
         issuedAt: now,
         expiresAt,
