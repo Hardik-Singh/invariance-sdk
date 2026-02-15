@@ -17,6 +17,7 @@ import {
 import { IndexerClient } from '../../utils/indexer-client.js';
 import { serializeRules, deserializeRules } from './rule-serializer.js';
 import { X402Manager } from '../x402/X402Manager.js';
+import { parseBaseUnitAmount } from '../../utils/amounts.js';
 import type {
   CreatePolicyOptions,
   SpecPolicy,
@@ -397,10 +398,19 @@ export class PolicyEngine {
 
     try {
       const contract = this.contracts.getContract('policy');
-      const identityIdBytes = toBytes32(opts.actor.address || opts.actor.type);
+      const identityContract = this.contracts.getContract('identity');
+
+      let identityIdBytes: `0x${string}`;
+      if (opts.actor.identityId) {
+        identityIdBytes = toBytes32(opts.actor.identityId);
+      } else {
+        const resolveFn = identityContract.read['resolve'];
+        if (!resolveFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'resolve function not found');
+        identityIdBytes = await resolveFn([opts.actor.address as `0x${string}`]) as `0x${string}`;
+      }
       const actionBytes = toBytes32(opts.action);
       const target = (opts.params?.['target'] as string) || '0x0000000000000000000000000000000000000000';
-      const value = opts.amount ? BigInt(opts.amount) : 0n;
+      const value = opts.amount ? parseBaseUnitAmount(opts.amount, 'amount') : 0n;
       const data = (opts.params?.['data'] as `0x${string}`) || '0x';
 
       const evaluateFn = contract.read['evaluate'];

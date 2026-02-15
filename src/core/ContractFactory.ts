@@ -9,7 +9,8 @@ import {
 } from '@invariance/common';
 import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../errors/InvarianceError.js';
-import { type PublicClient, type WalletClient, getContract as viemGetContract } from 'viem';
+import { type PublicClient, type WalletClient, createPublicClient, getContract as viemGetContract, http, webSocket } from 'viem';
+import { base, baseSepolia } from 'viem/chains';
 import {
   InvarianceIdentityAbi,
   InvariancePolicyAbi,
@@ -66,6 +67,7 @@ export class ContractFactory {
   private readonly chainConfig: ChainConfig;
   private readonly addresses: ContractAddresses;
   private publicClient: PublicClient | null = null;
+  private wsPublicClient: PublicClient | null = null;
   private walletClient: WalletClient | null = null;
 
   constructor(config: InvarianceConfig) {
@@ -90,6 +92,20 @@ export class ContractFactory {
       );
     }
     this.addresses = addresses;
+
+    const chain = config.chain === 'base' ? base : baseSepolia;
+    const rpcUrl = config.rpcUrl ?? this.chainConfig.rpcUrl;
+    const pollingInterval = config.pollingInterval ?? this.chainConfig.pollingInterval;
+    this.publicClient = createPublicClient({ chain, transport: http(rpcUrl), pollingInterval }) as PublicClient;
+
+    // Create WebSocket-backed client for faster receipt watching (instant block notifications)
+    if (config.wsRpcUrl) {
+      try {
+        this.wsPublicClient = createPublicClient({ chain, transport: webSocket(config.wsRpcUrl), pollingInterval }) as PublicClient;
+      } catch {
+        // Fall back to HTTP if WS connection fails
+      }
+    }
   }
 
   /**
@@ -180,10 +196,26 @@ export class ContractFactory {
     this.walletClient = walletClient;
   }
 
+  /**
+   * Get the best available client for receipt watching.
+   * Prefers WebSocket (instant block notifications) over HTTP polling.
+   */
+  getReceiptClient(): PublicClient {
+    return this.wsPublicClient ?? this.getPublicClient();
+  }
+
+  /** Get the confirmation strategy. */
+  getConfirmation(): 'optimistic' | 'receipt' {
+    return this.config.confirmation ?? 'receipt';
+  }
+
   /** Get the public client for read operations */
   getPublicClient(): PublicClient {
     if (!this.publicClient) {
-      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'Public client not initialized. Provide a signer in config.');
+      throw new InvarianceError(
+        ErrorCode.WALLET_NOT_CONNECTED,
+        'Public client not initialized. Provide rpcUrl or signer in config.',
+      );
     }
     return this.publicClient;
   }
@@ -213,8 +245,11 @@ export class ContractFactory {
     read: Record<string, (...args: unknown[]) => Promise<unknown>>;
     write: Record<string, (...args: unknown[]) => Promise<`0x${string}`>>;
   } {
-    if (!this.publicClient || !this.walletClient) {
-      throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'Clients not initialized. Call setClients() first.');
+    if (!this.publicClient) {
+      throw new InvarianceError(
+        ErrorCode.WALLET_NOT_CONNECTED,
+        'Public client not initialized. Provide rpcUrl or signer in config.',
+      );
     }
     const abi = ABI_MAP[name];
     const addressKey = ADDRESS_KEY_MAP[name];
@@ -222,15 +257,36 @@ export class ContractFactory {
 
     // The actual viem contract instance has fully typed read/write methods
     // but we use a simplified return type to avoid TS serialization limits
-    return viemGetContract({
+    const contract = viemGetContract({
       address,
       abi,
-      client: { public: this.publicClient, wallet: this.walletClient },
+      client: this.walletClient ? { public: this.publicClient, wallet: this.walletClient } : { public: this.publicClient },
     }) as unknown as {
       address: `0x${string}`;
       abi: readonly unknown[];
       read: Record<string, (...args: unknown[]) => Promise<unknown>>;
       write: Record<string, (...args: unknown[]) => Promise<`0x${string}`>>;
+    };
+
+    if (this.walletClient) {
+      return contract;
+    }
+
+    const writeProxy = new Proxy(
+      {},
+      {
+        get() {
+          throw new InvarianceError(
+            ErrorCode.WALLET_NOT_CONNECTED,
+            'Wallet client not initialized. Provide a signer to perform write operations.',
+          );
+        },
+      },
+    ) as Record<string, (...args: unknown[]) => Promise<`0x${string}`>>;
+
+    return {
+      ...contract,
+      write: writeProxy,
     };
   }
 

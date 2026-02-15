@@ -8,6 +8,7 @@
  * Install them with: `pnpm add @x402/core @x402/evm`
  */
 import { ErrorCode } from '@invariance/common';
+import { stringToHex } from 'viem';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import type { PaymentReceipt, PaymentVerification, X402Settings } from './types.js';
 
@@ -173,9 +174,10 @@ export class X402PaymentClient {
       // Generate a deterministic payment ID
       const paymentId = `x402_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
+      const payloadHex = stringToHex(JSON.stringify(payload));
       return {
         paymentId,
-        txHash: `0x${Buffer.from(JSON.stringify(payload)).toString('hex').slice(0, 64)}`,
+        txHash: `0x${payloadHex.slice(2, 66)}`,
         amount,
         recipient,
         payer: signer.address,

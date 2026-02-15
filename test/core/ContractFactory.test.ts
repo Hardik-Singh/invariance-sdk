@@ -138,16 +138,10 @@ describe('ContractFactory', () => {
       expect(factory.hasClients()).toBe(false);
     });
 
-    it('getPublicClient() throws WALLET_NOT_CONNECTED before clients set', () => {
+    it('getPublicClient() returns a public client before wallet clients set', () => {
       const factory = createContractFactory();
-      expect(() => factory.getPublicClient()).toThrow(InvarianceError);
-      try {
-        factory.getPublicClient();
-      } catch (err) {
-        expect((err as InvarianceError).code).toBe(
-          ErrorCode.WALLET_NOT_CONNECTED,
-        );
-      }
+      const client = factory.getPublicClient();
+      expect(client).toBeDefined();
     });
 
     it('getWalletClient() throws WALLET_NOT_CONNECTED before clients set', () => {
@@ -162,9 +156,11 @@ describe('ContractFactory', () => {
       }
     });
 
-    it('getContract() throws before clients set', () => {
+    it('getContract() allows reads but blocks writes before wallet clients set', () => {
       const factory = createContractFactory();
-      expect(() => factory.getContract('identity')).toThrow(InvarianceError);
+      const contract = factory.getContract('identity');
+      expect(contract.read).toBeDefined();
+      expect(() => contract.write['register']).toThrow(InvarianceError);
     });
 
     it('hasClients() returns true after setClients()', () => {

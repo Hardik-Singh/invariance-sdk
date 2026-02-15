@@ -208,7 +208,7 @@ export class Invariance {
       this._wallet = new WalletManager(this.contracts, this.telemetry, this.config);
 
       // Store private key if it was loaded from env
-      const envKey = process.env['INVARIANCE_PRIVATE_KEY'];
+      const envKey = typeof process !== 'undefined' ? process.env['INVARIANCE_PRIVATE_KEY'] : undefined;
       if (envKey) {
         const hex = envKey.startsWith('0x') ? envKey : `0x${envKey}`;
         this._wallet.setPrivateKey(hex);
@@ -261,6 +261,7 @@ export class Invariance {
    * 10 methods: register, get, resolve, update, pause, resume, deactivate, list, attest, attestations
    */
   get identity(): IdentityManager {
+    this._autoInit();
     if (!this._identity) {
       this._identity = new IdentityManager(this.contracts, this.events, this.telemetry);
     }
@@ -298,6 +299,7 @@ export class Invariance {
    * 6 methods: request, prepare, approve, reject, status, history
    */
   get intent(): IntentProtocol {
+    this._autoInit();
     if (!this._intent) {
       this._intent = new IntentProtocol(this.contracts, this.events, this.telemetry);
     }
@@ -311,6 +313,7 @@ export class Invariance {
    * 9 methods: create, attach, detach, evaluate, revoke, status, list, compose, onViolation
    */
   get policy(): PolicyEngine {
+    this._autoInit();
     if (!this._policy) {
       this._policy = new PolicyEngine(this.contracts, this.events, this.telemetry);
     }
@@ -324,6 +327,7 @@ export class Invariance {
    * 11 methods: create, fund, release, refund, dispute, resolve, approve, approvals, status, list, onStateChange
    */
   get escrow(): EscrowManager {
+    this._autoInit();
     if (!this._escrow) {
       this._escrow = new EscrowManager(this.contracts, this.events, this.telemetry);
     }
@@ -337,6 +341,7 @@ export class Invariance {
    * 5 methods: log, batch, query, stream, export
    */
   get ledger(): EventLedger {
+    this._autoInit();
     if (!this._ledger) {
       this._ledger = new EventLedger(this.contracts, this.events, this.telemetry);
     }
@@ -351,6 +356,7 @@ export class Invariance {
    * 7 methods: verify (callable), action, identity, escrow, proof, bulk, url
    */
   get verify(): VerifyProxy {
+    this._autoInit();
     if (!this._verify) {
       const verifier = new Verifier(this.contracts, this.events, this.telemetry);
 
@@ -381,6 +387,7 @@ export class Invariance {
    * 7 methods: get, review, getReviews, score, compare, badge, history
    */
   get reputation(): ReputationEngine {
+    this._autoInit();
     if (!this._reputation) {
       this._reputation = new ReputationEngine(this.contracts, this.events, this.telemetry);
     }
@@ -394,6 +401,7 @@ export class Invariance {
    * 2 methods: estimate, balance
    */
   get gas(): GasManager {
+    this._autoInit();
     if (!this._gas) {
       this._gas = new GasManager(this.contracts, this.events, this.telemetry);
     }
@@ -407,6 +415,7 @@ export class Invariance {
    * 5 methods: payForAction, verifyPayment, history, estimateCost, configure
    */
   get x402(): X402Manager {
+    this._autoInit();
     if (!this._x402) {
       this._x402 = new X402Manager(this.contracts, this.events, this.telemetry);
     }
@@ -424,6 +433,7 @@ export class Invariance {
    * getValidationStatus, getValidationSummary
    */
   get erc8004(): ERC8004Manager {
+    this._autoInit();
     if (!this._erc8004) {
       const chainId = this.contracts.getChainId();
       this._erc8004 = new ERC8004Manager({
@@ -445,6 +455,7 @@ export class Invariance {
    * requestInvarianceValidation
    */
   get erc8004Bridge(): InvarianceBridge {
+    this._autoInit();
     if (!this._erc8004Bridge) {
       this._erc8004Bridge = new InvarianceBridge(
         this.erc8004,
@@ -465,6 +476,7 @@ export class Invariance {
    * 8 methods: register, update, deactivate, search, get, featured, hire, complete
    */
   get marketplace(): MarketplaceKit {
+    this._autoInit();
     if (!this._marketplace) {
       this._marketplace = new MarketplaceKit(this.contracts, this.events, this.telemetry);
     }

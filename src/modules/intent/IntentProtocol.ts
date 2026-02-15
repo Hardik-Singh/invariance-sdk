@@ -5,6 +5,8 @@ import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
 import { X402Manager } from '../x402/X402Manager.js';
+import { stringToHex } from 'viem';
+import { parseBaseUnitAmount } from '../../utils/amounts.js';
 import {
   toBytes32,
   fromBytes32,
@@ -127,7 +129,6 @@ export class IntentProtocol {
 
     try {
       const contract = this.contracts.getContract('intent');
-      const publicClient = this.contracts.getPublicClient();
       const identityContract = this.contracts.getContract('identity');
 
       // Resolve actor identity ID
@@ -181,8 +182,8 @@ export class IntentProtocol {
       // Prepare request parameters
       const actionBytes = toBytes32(opts.action);
       const targetAddress = (opts.target ?? '0x0000000000000000000000000000000000000000') as `0x${string}`;
-      const value = BigInt(opts.amount ?? '0');
-      const data = opts.params ? Buffer.from(JSON.stringify(opts.params)).toString('hex') as `0x${string}` : '0x' as `0x${string}`;
+      const value = opts.amount !== undefined ? parseBaseUnitAmount(opts.amount, 'amount') : 0n;
+      const data = opts.params ? (stringToHex(JSON.stringify(opts.params)) as `0x${string}`) : '0x' as `0x${string}`;
       const description = (opts.metadata?.['description'] as string | undefined) ?? opts.action;
       const metadataHash = hashMetadata(opts.metadata ?? {});
       const expiresAt = BigInt((opts.metadata?.['expiresAt'] as number | undefined) ?? 0);
@@ -201,8 +202,12 @@ export class IntentProtocol {
         expiresAt,
       ]);
 
-      const receipt = await waitForReceipt(publicClient, txHash);
-      const intentId = parseIntentIdFromLogs(receipt.logs);
+      const optimistic = this.contracts.getConfirmation() === 'optimistic';
+      const receiptClient = this.contracts.getReceiptClient();
+      const receipt = await waitForReceipt(receiptClient, txHash, { optimistic });
+      const intentId = optimistic
+        ? toBytes32(txHash) // Use txHash as placeholder ID in optimistic mode
+        : parseIntentIdFromLogs(receipt.logs);
 
       // Auto-approve if requested
       if (opts.approval === 'auto') {
@@ -289,8 +294,8 @@ export class IntentProtocol {
       // Evaluate against policies
       const actionBytes = toBytes32(opts.action);
       const targetAddress = (opts.target ?? '0x0000000000000000000000000000000000000000') as `0x${string}`;
-      const value = BigInt(opts.amount ?? '0');
-      const data = opts.params ? Buffer.from(JSON.stringify(opts.params)).toString('hex') as `0x${string}` : '0x' as `0x${string}`;
+      const value = opts.amount !== undefined ? parseBaseUnitAmount(opts.amount, 'amount') : 0n;
+      const data = opts.params ? (stringToHex(JSON.stringify(opts.params)) as `0x${string}`) : '0x' as `0x${string}`;
 
       const evaluateFn = policyContract.read['evaluate'];
       let wouldSucceed = isActive;

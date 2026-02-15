@@ -5,7 +5,7 @@
  * the SDK's module logic without requiring a real blockchain.
  */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { keccak256, toHex } from 'viem';
+import { keccak256, toHex, stringToHex } from 'viem';
 
 // ============================================================================
 // Mock @invariance/common before any SDK imports
@@ -319,7 +319,7 @@ function createMockContractFactory() {
             intentId: MOCK_INTENT_ID,
             requesterIdentityId: MOCK_IDENTITY_ID,
             requester: MOCK_WALLET_ADDRESS,
-            action: '0x' + Buffer.from('swap').toString('hex').padEnd(64, '0'),
+            action: stringToHex('swap', { size: 32 }),
             target: '0x0000000000000000000000000000000000000000',
             value: 0n,
             data: '0x',
@@ -469,6 +469,8 @@ function createMockContractFactory() {
     isManaged: vi.fn(() => false),
     getSigner: vi.fn(() => undefined),
     getApiKey: vi.fn(() => undefined),
+    getConfirmation: vi.fn(() => 'receipt' as const),
+    getReceiptClient: vi.fn(() => mockPublicClient),
     setClients: vi.fn(),
 
     // Expose internals for assertions
@@ -1027,27 +1029,20 @@ describe('Suite 4: Policy Engine', () => {
     (policyContract.read['getRules'] as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       {
         ruleType: 14, // custom
-        config: '0x' + Buffer.from(JSON.stringify({ type: 'require-payment' }), 'utf8').toString('hex') as `0x${string}`,
+        config: stringToHex(JSON.stringify({ type: 'require-payment' })) as `0x${string}`,
       },
     ]);
 
-    // The evaluate function internally deserializes rules and checks for require-payment.
-    // We mock getRules to return a 'custom' rule whose deserialized config says require-payment.
-    // However, the PolicyEngine.evaluate checks for rule.type === 'require-payment' after deserialization,
-    // and the custom type deserializer reads JSON from config hex. Let's provide a proper require-payment type.
-    // The rule serializer maps 'require-payment' to the opaque/custom category, so we need to check
-    // how it's stored. Since 'require-payment' is not in POLICY_RULE_TYPE_MAP, it would throw.
-    // Looking at the code: the evaluate method just reads rules and checks rule.type === 'require-payment'.
-    // Since our mock already returns empty rules by default, this test verifies the base case.
-    // Let's just verify the base evaluate passes:
     const result = await policy.evaluate({
       policyId: 'test-policy',
       actor: { type: 'agent', address: MOCK_WALLET_ADDRESS },
       action: 'swap',
     });
 
-    // With no require-payment rule, evaluate passes
-    expect(result.allowed).toBe(true);
+    expect(result.allowed).toBe(false);
+    expect(result.ruleResults).toEqual([
+      expect.objectContaining({ type: 'require-payment', passed: false }),
+    ]);
   });
 
   it('composes two policies and emits policy.composed', async () => {

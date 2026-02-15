@@ -1,24 +1,44 @@
 import type { PolicyRule } from '@invariance/common';
-import { encodeAbiParameters, decodeAbiParameters } from 'viem';
+import { ErrorCode } from '@invariance/common';
+import { encodeAbiParameters, decodeAbiParameters, stringToHex, hexToString } from 'viem';
+import { parseBaseUnitAmount } from '../../utils/amounts.js';
+import { InvarianceError } from '../../errors/InvarianceError.js';
 import { policyRuleTypeToEnum, enumToPolicyRuleType, toBytes32 } from '../../utils/contract-helpers.js';
 
 /**
- * Parse a time value that can be a number (Unix timestamp / seconds),
- * a numeric string, or an HH:MM string (converted to seconds since midnight).
+ * Parse a time value as an hour-of-day (0-23).
+ *
+ * Accepts:
+ * - number (0-23)
+ * - numeric string (0-23)
+ * - HH:MM string (minutes must be 00)
  */
-function parseTimeValue(value: string | number): bigint {
-  if (typeof value === 'number') return BigInt(value);
-  // HH:MM format → seconds since midnight
+function parseHourValue(value: string | number): bigint {
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || value < 0 || value > 23) {
+      throw new Error(`Invalid time value: ${value}. Hours must be an integer from 0-23.`);
+    }
+    return BigInt(value);
+  }
+
   const match = value.match(/^(\d{1,2}):(\d{2})$/);
   if (match) {
     const hours = parseInt(match[1]!, 10);
     const minutes = parseInt(match[2]!, 10);
-    if (hours >= 24 || minutes >= 60) {
-      throw new Error(`Invalid time value: ${value}. Hours must be 0-23, minutes must be 0-59.`);
+    if (hours < 0 || hours > 23) {
+      throw new Error(`Invalid time value: ${value}. Hours must be 0-23.`);
     }
-    return BigInt(hours * 3600 + minutes * 60);
+    if (minutes !== 0) {
+      throw new Error(`Invalid time value: ${value}. Minutes must be 00 (hour precision only).`);
+    }
+    return BigInt(hours);
   }
-  return BigInt(value);
+
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric > 23) {
+    throw new Error(`Invalid time value: ${value}. Hours must be an integer from 0-23.`);
+  }
+  return BigInt(numeric);
 }
 
 /** On-chain representation of a policy rule */
@@ -47,6 +67,11 @@ const ADDRESS_ARRAY_RULE_TYPES = new Set([
   'target-blacklist',
 ]);
 
+/** Rule types that are encoded as Custom on-chain but need SDK-level decoding */
+const CUSTOM_ENCODED_RULE_TYPES = new Set<PolicyRule['type']>([
+  'require-payment',
+]);
+
 /**
  * Serialize a PolicyRule to its on-chain representation.
  * Encodes the config object as ABI-encoded bytes matching the contract's expected format.
@@ -65,7 +90,17 @@ export function serializeRule(rule: PolicyRule): OnChainPolicyRule {
 
   if (UINT256_RULE_TYPES.has(rule.type)) {
     // Contract expects abi.decode(config, (uint256))
-    const limit = BigInt((rule.config['limit'] as string | number) ?? 0);
+    const raw =
+      rule.type === 'require-balance'
+        ? (rule.config['minBalance'] ?? rule.config['limit'] ?? rule.config['amount'])
+        : (rule.config['limit'] ?? rule.config['amount']);
+    if (raw === undefined) {
+      throw new InvarianceError(
+        ErrorCode.INVALID_INPUT,
+        `Missing required numeric config for rule type "${rule.type}".`,
+      );
+    }
+    const limit = parseBaseUnitAmount(raw as string | number | bigint, `${rule.type}.limit`);
     config = encodeAbiParameters([{ type: 'uint256' }], [limit]);
   } else if (BYTES32_ARRAY_RULE_TYPES.has(rule.type)) {
     // Contract expects abi.decode(config, (bytes32[]))
@@ -80,17 +115,19 @@ export function serializeRule(rule: PolicyRule): OnChainPolicyRule {
     config = encodeAbiParameters([{ type: 'address[]' }], [addresses]);
   } else if (rule.type === 'time-window') {
     // Contract expects abi.decode(config, (uint256, uint256))
-    // Values can be Unix timestamps or HH:MM strings (converted to seconds since midnight)
-    const start = parseTimeValue((rule.config['start'] as string | number) ?? 0);
-    const end = parseTimeValue((rule.config['end'] as string | number) ?? 0);
+    // Values are hours (0-23) or HH:MM strings (minutes must be 00)
+    const start = parseHourValue((rule.config['start'] as string | number) ?? 0);
+    const end = parseHourValue((rule.config['end'] as string | number) ?? 0);
     config = encodeAbiParameters(
       [{ type: 'uint256' }, { type: 'uint256' }],
       [start, end],
     );
   } else {
     // Opaque types (cooldown, rate-limit, custom, etc.): keep JSON-to-hex
-    const configJson = JSON.stringify(rule.config);
-    config = `0x${Buffer.from(configJson, 'utf8').toString('hex')}` as `0x${string}`;
+    const configJson = CUSTOM_ENCODED_RULE_TYPES.has(rule.type)
+      ? JSON.stringify({ ...rule.config, type: rule.type })
+      : JSON.stringify(rule.config);
+    config = stringToHex(configJson) as `0x${string}`;
   }
 
   return { ruleType, config };
@@ -127,11 +164,19 @@ export function deserializeRule(onChainRule: OnChainPolicyRule): PolicyRule {
         onChainRule.config,
       );
       config = { start: start.toString(), end: end.toString() };
-    } else {
-      // Opaque types: try JSON decode
-      const configJson = Buffer.from(onChainRule.config.slice(2), 'hex').toString('utf8');
-      config = JSON.parse(configJson) as Record<string, unknown>;
+  } else {
+    // Opaque types: try JSON decode
+    const configJson = hexToString(onChainRule.config);
+    config = JSON.parse(configJson) as Record<string, unknown>;
+
+    if (type === 'custom') {
+      const taggedType = config['type'];
+      if (typeof taggedType === 'string' && CUSTOM_ENCODED_RULE_TYPES.has(taggedType as PolicyRule['type'])) {
+        const { type: _ignored, ...rest } = config;
+        return { type: taggedType as PolicyRule['type'], config: rest };
+      }
     }
+  }
   } catch {
     // If decoding fails, leave config empty
     config = {};

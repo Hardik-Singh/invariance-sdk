@@ -125,7 +125,7 @@ describe('PolicyEngine', () => {
       await policy.create({
         name: 'Test Policy',
         actor: 'agent',
-        rules: [{ type: 'max-spend', config: {} }],
+        rules: [{ type: 'max-spend', config: { limit: '0' } }],
       });
 
       expect(listener).toHaveBeenCalledOnce();
@@ -168,7 +168,7 @@ describe('PolicyEngine', () => {
         name: 'Test',
         actor: 'agent',
         rules: [
-          { type: 'max-spend', config: {} },
+          { type: 'max-spend', config: { limit: '0' } },
           { type: 'action-whitelist', config: {} },
         ],
       });
@@ -209,7 +209,7 @@ describe('PolicyEngine', () => {
       const result = await policy.create({
         name: 'Multi-Actor Policy',
         actor: ['agent', 'human'],
-        rules: [{ type: 'max-spend', config: {} }],
+        rules: [{ type: 'max-spend', config: { limit: '0' } }],
       });
 
       expect(Array.isArray(result.actor)).toBe(true);
@@ -233,7 +233,7 @@ describe('PolicyEngine', () => {
         policy.create({
           name: 'Test',
           actor: 'agent',
-          rules: [{ type: 'max-spend', config: {} }],
+          rules: [{ type: 'max-spend', config: { limit: '0' } }],
         }),
       ).rejects.toThrow(InvarianceError);
     });
@@ -549,6 +549,7 @@ describe('PolicyEngine', () => {
           evaluate: vi.fn().mockResolvedValue([false, '0x']),
         },
       });
+      mockContract.read.resolve.mockResolvedValue(ZERO_BYTES32);
       contracts = createMockContractFactory({
         contract: mockContract,
       });
@@ -556,7 +557,7 @@ describe('PolicyEngine', () => {
 
       const result = await policy.evaluate({
         policyId: 'policy_1',
-        actor: { type: 'agent', address: '0x1' },
+        actor: { type: 'agent', address: '0x1111111111111111111111111111111111111111' },
         action: 'swap',
       });
 
@@ -572,6 +573,7 @@ describe('PolicyEngine', () => {
           evaluate: vi.fn().mockResolvedValue([true, '0x']),
         },
       });
+      mockContract.read.resolve.mockResolvedValue(ZERO_BYTES32);
       contracts = createMockContractFactory({
         contract: mockContract,
       });
@@ -579,7 +581,7 @@ describe('PolicyEngine', () => {
 
       const result = await policy.evaluate({
         policyId: 'policy_1',
-        actor: { type: 'agent', address: '0x1' },
+        actor: { type: 'agent', address: '0x1111111111111111111111111111111111111111' },
         action: 'swap',
       });
 
@@ -592,6 +594,7 @@ describe('PolicyEngine', () => {
           evaluate: vi.fn().mockResolvedValue([false, '0x']),
         },
       });
+      mockContract.read.resolve.mockResolvedValue(ZERO_BYTES32);
       contracts = createMockContractFactory({
         contract: mockContract,
       });
@@ -601,7 +604,7 @@ describe('PolicyEngine', () => {
 
       await policy.evaluate({
         policyId: 'policy_1',
-        actor: { type: 'agent', address: '0x1' },
+        actor: { type: 'agent', address: '0x1111111111111111111111111111111111111111' },
         action: 'swap',
       });
 

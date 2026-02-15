@@ -392,7 +392,7 @@ const result = await inv.intent.request({
   actor: { type: 'agent', address: '0x...' },
   action: 'swap',
   target: '0x...',                    // Target contract (optional)
-  amount: '0.1',                      // ETH value (optional)
+  amount: '100',                      // Base units integer (e.g., wei), optional
   params: { from: 'USDC', to: 'ETH', amount: '50' },
   approval: 'auto',                   // 'auto' | 'wallet-signature' | 'multi-sig'
   metadata: { source: 'bot-v2' },     // Optional
@@ -514,7 +514,7 @@ interface SpecPolicy {
 
 | Type | Config | Description |
 |------|--------|-------------|
-| `max-spend` | `{ limit: string, period?: string }` | Maximum USDC spend |
+| `max-spend` | `{ limit: string, period?: string }` | Maximum value (base units integer) |
 | `action-whitelist` | `{ actions: string[] }` | Allowed action types |
 | `time-window` | `{ start: string, end: string, days?: string[] }` | Time-based access |
 | `require-approval` | `{ signers: string[], threshold: number }` | Multi-sig approval |
@@ -537,7 +537,7 @@ const result = await inv.policy.evaluate({
   policyId: '...',
   actor: { type: 'agent', address: '0x...' },
   action: 'swap',
-  amount: '500',
+  amount: '500',               // Base units integer (e.g., wei)
   params: { from: 'USDC', to: 'ETH' },
   paymentReceiptId: '...',     // For require-payment rule (optional)
 });

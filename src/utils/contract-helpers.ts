@@ -1,7 +1,7 @@
 import type { ActorType, ListingCategory } from '@invariance/common';
 import type { PricingModel } from '@invariance/common';
 import type { PublicClient, WalletClient } from 'viem';
-import { keccak256, toHex, decodeEventLog } from 'viem';
+import { keccak256, toHex, decodeEventLog, stringToHex, hexToString } from 'viem';
 import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../errors/InvarianceError.js';
 import { InvarianceIntentAbi } from '../contracts/abis/index.js';
@@ -109,14 +109,15 @@ export function toBytes32(id: string): `0x${string}` {
   }
 
   // Encode string to bytes32 by padding
-  const hex = Buffer.from(id, 'utf8').toString('hex');
-  if (hex.length > 64) {
+  const hex = stringToHex(id);
+  const hexBody = hex.slice(2);
+  if (hexBody.length > 64) {
     throw new InvarianceError(
       ErrorCode.INVALID_INPUT,
-      `ID exceeds 32 bytes: "${id}" (${hex.length / 2} bytes). Use a shorter identifier or hash it first.`,
+      `ID exceeds 32 bytes: "${id}" (${hexBody.length / 2} bytes). Use a shorter identifier or hash it first.`,
     );
   }
-  return `0x${hex.padEnd(64, '0')}`;
+  return `0x${hexBody.padEnd(64, '0')}`;
 }
 
 /**
@@ -131,36 +132,68 @@ export function fromBytes32(bytes: `0x${string}`): string {
   // Remove trailing zeros (pairs of 00)
   const trimmed = hex.replace(/(00)+$/, '');
   if (trimmed.length === 0) return '';
-  const decoded = Buffer.from(trimmed, 'hex').toString('utf8');
+  let decoded: string;
+  try {
+    decoded = hexToString(`0x${trimmed}`);
+  } catch {
+    return bytes;
+  }
   // If decoded string contains replacement characters or non-printable bytes,
   // it's likely a raw hash — return the original hex to ensure round-trip safety
-  if (/[\uFFFD]/.test(decoded) || Buffer.from(decoded, 'utf8').toString('hex') !== trimmed) {
+  const reencoded = stringToHex(decoded).slice(2);
+  if (/[\uFFFD]/.test(decoded) || reencoded.toLowerCase() !== trimmed.toLowerCase()) {
     return bytes;
   }
   return decoded;
 }
 
+/** Receipt returned by waitForReceipt */
+export interface TxReceipt {
+  txHash: string;
+  blockNumber: number;
+  gasUsed: string;
+  status: 'success' | 'reverted';
+  logs: readonly { topics: readonly string[]; data: string }[];
+}
+
+/** Options for waitForReceipt */
+export interface WaitForReceiptOptions {
+  /** Skip waiting and return an optimistic result with only the txHash */
+  optimistic?: boolean;
+}
+
 /**
  * Wait for a transaction receipt and verify success.
  *
- * @param publicClient - The viem PublicClient
+ * @param publicClient - The viem PublicClient (prefer WS-backed for speed)
  * @param txHash - The transaction hash to wait for
+ * @param options - Optional settings (optimistic mode, etc.)
  * @returns The transaction receipt
  * @throws {InvarianceError} If the transaction reverted
  */
 export async function waitForReceipt(
   publicClient: PublicClient,
   txHash: `0x${string}`,
-): Promise<{
-  txHash: string;
-  blockNumber: number;
-  gasUsed: string;
-  status: 'success' | 'reverted';
-  logs: readonly { topics: readonly string[]; data: string }[];
-}> {
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
+  options?: WaitForReceiptOptions,
+): Promise<TxReceipt> {
+  // Optimistic mode: return immediately with the tx hash, skip receipt wait
+  if (options?.optimistic) {
+    return {
+      txHash,
+      blockNumber: 0,
+      gasUsed: '0',
+      status: 'success',
+      logs: [],
+    };
+  }
 
-  const result = {
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+    timeout: 30_000,
+    confirmations: 1,
+  });
+
+  const result: TxReceipt = {
     txHash: receipt.transactionHash,
     blockNumber: Number(receipt.blockNumber),
     gasUsed: receipt.gasUsed.toString(),
@@ -205,6 +238,8 @@ const POLICY_RULE_TYPE_MAP: Record<string, number> = {
   'require-balance': 11,
   'require-approval': 12,
   'require-attestation': 13,
+  // Off-chain only: encoded as Custom on-chain
+  'require-payment': 14,
   'custom': 14,
 };
 

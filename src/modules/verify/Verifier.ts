@@ -286,22 +286,50 @@ export class Verifier {
     try {
       const identityContract = this.contracts.getContract('identity');
 
-      // Resolve identity
+      // Resolve identity first (needed for subsequent calls)
       const resolveFn = identityContract.read['resolve'];
       if (!resolveFn) {
         throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'resolve function not found');
       }
       const identityId = await resolveFn([address as `0x${string}`]) as `0x${string}`;
 
-      // Fetch identity struct
-      const getFn = identityContract.read['get'];
-      if (!getFn) {
-        throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'get function not found');
-      }
-      const rawIdentity = await getFn([identityId]) as OnChainIdentity;
+      // Batch identity struct + attestations via multicall (single RPC round-trip)
+      const publicClient = this.contracts.getPublicClient();
+      let rawIdentity: OnChainIdentity;
+      let rawAttestationsResult: { success: boolean; data: unknown } = { success: false, data: null };
 
-      // Fetch attestations
-      const getAttFn = identityContract.read['getAttestations'];
+      if (typeof publicClient.multicall === 'function') {
+        const identityAddr = this.contracts.getAddress('identity') as `0x${string}`;
+        const { InvarianceIdentityAbi } = await import('../../contracts/abis/index.js');
+
+        const batchResults = await publicClient.multicall({
+          contracts: [
+            { address: identityAddr, abi: InvarianceIdentityAbi, functionName: 'get', args: [identityId] },
+            { address: identityAddr, abi: InvarianceIdentityAbi, functionName: 'getAttestations', args: [identityId] },
+          ],
+        });
+
+        if (batchResults[0].status === 'failure') {
+          throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'Failed to fetch identity');
+        }
+        rawIdentity = batchResults[0].result as unknown as OnChainIdentity;
+        if (batchResults[1].status === 'success') {
+          rawAttestationsResult = { success: true, data: batchResults[1].result };
+        }
+      } else {
+        // Fallback: sequential reads (for environments without multicall support)
+        const getFn = identityContract.read['get'];
+        if (!getFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'get function not found');
+        rawIdentity = await getFn([identityId]) as OnChainIdentity;
+
+        const getAttFn = identityContract.read['getAttestations'];
+        if (getAttFn) {
+          try {
+            rawAttestationsResult = { success: true, data: await getAttFn([identityId]) };
+          } catch { /* Attestations may not be available */ }
+        }
+      }
+
       let attestations: Array<{
         attestationId: string;
         identity: string;
@@ -312,9 +340,9 @@ export class Verifier {
         txHash: string;
         verified: boolean;
       }> = [];
-      if (getAttFn) {
+      if (rawAttestationsResult.success) {
         try {
-          const rawAttestations = await getAttFn([identityId]) as Array<{
+          const rawAttestations = rawAttestationsResult.data as Array<{
             attestationId: `0x${string}`;
             attester: string;
             claim: string;
