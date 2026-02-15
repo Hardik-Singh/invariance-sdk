@@ -1,0 +1,21 @@
+# Source & tests
+src/
+test/
+__tests__/
+*.test.ts
+*.spec.ts
+
+# Examples & docs
+examples/
+integrations/
+docs/
+HANDOFF*.md
+
+# Config files
+.env
+.env.*
+vitest.config.ts
+tsup.config.ts
+tsconfig.json
+.eslintrc*
+.prettierrc*
