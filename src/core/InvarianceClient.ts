@@ -218,6 +218,11 @@ export class Invariance {
         if (this._wallet!.isConnected()) {
           this.contracts.setClients(this._wallet!.getPublicClient(), this._wallet!.getWalletClient());
         }
+      }).catch((err: unknown) => {
+        console.error('[Invariance] Wallet initialization failed:', err instanceof Error ? err.message : String(err));
+        // Clear the promise so subsequent calls to ensureWalletInit() don't hang
+        this._walletInitPromise = undefined;
+        throw err;
       });
     }
   }
@@ -243,10 +248,12 @@ export class Invariance {
    */
   private _autoInit(): void {
     if (this._walletInitPromise) {
-      // Fire-and-forget: the promise resolves before any contract call
-      // because initFromSigner runs synchronously for local accounts.
-      // For async providers (EIP-1193), callers should still await ensureWalletInit().
-      void this._walletInitPromise;
+      // Attach a no-op catch to prevent unhandled rejection warnings.
+      // For async providers (EIP-1193, Privy), callers should await ready()
+      // or ensureWalletInit() before making contract calls.
+      this._walletInitPromise.catch(() => {
+        // Error already logged in the constructor .catch() handler
+      });
     }
   }
 

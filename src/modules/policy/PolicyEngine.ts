@@ -473,8 +473,17 @@ export class PolicyEngine {
               });
             }
           }
-        } catch {
-          // If we can't read rules, skip payment check
+        } catch (err) {
+          // Only swallow contract-read errors (e.g. function not found).
+          // Rethrow network/RPC errors that indicate a real problem.
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes('network') || errMsg.includes('timeout') || errMsg.includes('ECONNREFUSED') || errMsg.includes('fetch failed')) {
+            throw new InvarianceError(
+              ErrorCode.NETWORK_ERROR,
+              `Failed to read policy rules for payment verification: ${errMsg}`,
+            );
+          }
+          this.telemetry.track('policy.evaluate.ruleReadSkipped', { error: errMsg });
         }
       }
 
@@ -558,8 +567,16 @@ export class PolicyEngine {
       const contract = this.contracts.getContract('policy');
       const publicClient = this.contracts.getPublicClient();
 
-      const policyIdA = toBytes32(policyIds[0] ?? '');
-      const policyIdB = toBytes32(policyIds[1] ?? '');
+      const rawIdA = policyIds[0];
+      const rawIdB = policyIds[1];
+      if (!rawIdA || !rawIdB) {
+        throw new InvarianceError(
+          ErrorCode.INVALID_INPUT,
+          'compose() requires two non-empty policy IDs',
+        );
+      }
+      const policyIdA = toBytes32(rawIdA);
+      const policyIdB = toBytes32(rawIdB);
 
       // Generate composite name
       const name = `Composite Policy (${policyIds.length} policies)`;

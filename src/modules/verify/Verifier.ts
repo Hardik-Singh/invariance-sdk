@@ -209,7 +209,17 @@ export class Verifier {
 
       if (getEntryFn) {
         try {
-          entry = await getEntryFn([entryId]) as OnChainLedgerEntry;
+          const rawEntry = await getEntryFn([entryId]);
+          // Validate shape before casting
+          if (
+            rawEntry &&
+            typeof rawEntry === 'object' &&
+            'entryId' in (rawEntry as Record<string, unknown>) &&
+            'actorType' in (rawEntry as Record<string, unknown>) &&
+            'timestamp' in (rawEntry as Record<string, unknown>)
+          ) {
+            entry = rawEntry as OnChainLedgerEntry;
+          }
         } catch {
           // Entry may not be in ledger (could be intent/escrow event)
         }
@@ -286,7 +296,10 @@ export class Verifier {
               return this.verify(txHash);
             }
           }
-        } catch {
+        } catch (indexerErr) {
+          this.telemetry.track('verify.action.indexerError', {
+            error: indexerErr instanceof Error ? indexerErr.message : String(indexerErr),
+          });
           // Fall through to error
         }
       }

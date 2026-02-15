@@ -119,14 +119,20 @@ export class InvarianceEventEmitter {
         } catch (err) {
           // Re-emit listener errors as 'error' event so consumers can observe failures
           if (event !== 'error') {
-            try {
-              this.emit('error', {
-                code: 'LISTENER_ERROR',
-                message: err instanceof Error ? err.message : String(err),
-              });
-            } catch (errorErr) {
-              // Prevent recursion if error listener itself throws
-              console.warn('[Invariance] Error listener threw:', errorErr instanceof Error ? errorErr.message : String(errorErr));
+            const hasErrorListeners = (this.listeners.get('error')?.size ?? 0) > 0;
+            if (hasErrorListeners) {
+              try {
+                this.emit('error', {
+                  code: 'LISTENER_ERROR',
+                  message: err instanceof Error ? err.message : String(err),
+                });
+              } catch (errorErr) {
+                // Prevent recursion if error listener itself throws
+                console.warn('[Invariance] Error listener threw:', errorErr instanceof Error ? errorErr.message : String(errorErr));
+              }
+            } else {
+              // No error listeners registered — log to console so errors aren't silently lost
+              console.error(`[Invariance] Unhandled listener error on "${event as string}":`, err instanceof Error ? err.message : String(err));
             }
           }
         }

@@ -90,6 +90,13 @@ export function serializeRule(rule: PolicyRule): OnChainPolicyRule {
 
   if (UINT256_RULE_TYPES.has(rule.type)) {
     // Contract expects abi.decode(config, (uint256))
+    // Canonical key: 'limit' (for spend rules) or 'minBalance' (for require-balance)
+    if (rule.config['amount'] !== undefined && rule.config['limit'] === undefined) {
+      console.warn(`[Invariance] Deprecation: use "limit" instead of "amount" in ${rule.type} rule config.`);
+    }
+    if (rule.type === 'require-balance' && rule.config['limit'] !== undefined && rule.config['minBalance'] === undefined) {
+      console.warn(`[Invariance] Deprecation: use "minBalance" instead of "limit" in require-balance rule config.`);
+    }
     const raw =
       rule.type === 'require-balance'
         ? (rule.config['minBalance'] ?? rule.config['limit'] ?? rule.config['amount'])
@@ -105,6 +112,12 @@ export function serializeRule(rule: PolicyRule): OnChainPolicyRule {
   } else if (BYTES32_ARRAY_RULE_TYPES.has(rule.type)) {
     // Contract expects abi.decode(config, (bytes32[]))
     const items = (rule.config['actions'] as string[]) ?? [];
+    if (items.length === 0) {
+      throw new InvarianceError(
+        ErrorCode.INVALID_INPUT,
+        `Empty actions array for rule type "${rule.type}". This would block all actions — pass at least one action.`,
+      );
+    }
     config = encodeAbiParameters(
       [{ type: 'bytes32[]' }],
       [items.map((item) => toBytes32(item))],
@@ -118,6 +131,12 @@ export function serializeRule(rule: PolicyRule): OnChainPolicyRule {
     // Values are hours (0-23) or HH:MM strings (minutes must be 00)
     const start = parseHourValue((rule.config['start'] as string | number) ?? 0);
     const end = parseHourValue((rule.config['end'] as string | number) ?? 0);
+    if (end <= start) {
+      throw new InvarianceError(
+        ErrorCode.INVALID_INPUT,
+        `Invalid time-window: end (${end}) must be greater than start (${start}). This would block all actions.`,
+      );
+    }
     config = encodeAbiParameters(
       [{ type: 'uint256' }, { type: 'uint256' }],
       [start, end],

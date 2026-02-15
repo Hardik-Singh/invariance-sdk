@@ -6,7 +6,9 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ['viem', 'zod', '@invariance/common'],
+  // @invariance/common is bundled (not external) to support standalone npm installs
+  external: ['viem', 'zod'],
+  noExternal: ['@invariance/common'],
   define: {
     __SDK_VERSION__: JSON.stringify(require('./package.json').version),
   },

@@ -99,7 +99,15 @@ export class EscrowManager {
     const value = parseInt(match[1]!, 10);
     const unit = match[2]!;
     const multipliers: Record<string, number> = { h: 3600, d: 86400, w: 604800 };
-    return value * (multipliers[unit] ?? 3600);
+    const seconds = value * (multipliers[unit] ?? 3600);
+    const MAX_TIMEOUT_SECONDS = 365 * 86400; // 1 year
+    if (seconds > MAX_TIMEOUT_SECONDS) {
+      throw new InvarianceError(
+        ErrorCode.INVALID_INPUT,
+        `Timeout "${timeout}" exceeds maximum of 365 days (${MAX_TIMEOUT_SECONDS}s). Got ${seconds}s.`,
+      );
+    }
+    return seconds;
   }
 
   /**

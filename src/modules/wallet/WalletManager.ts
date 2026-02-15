@@ -5,6 +5,7 @@ import {
   custom,
   formatEther,
   parseEther,
+  getAddress,
   type WalletClient,
   type PublicClient,
   type Account,
@@ -78,7 +79,20 @@ export class WalletManager {
    * @returns The hex-encoded private key, or null if not available
    */
   exportPrivateKey(): string | null {
+    if (this._privateKey) {
+      console.warn('[Invariance] exportPrivateKey() called — handle the returned key securely. Never log or transmit it.');
+    }
     return this._privateKey;
+  }
+
+  /**
+   * Explicitly clear the stored private key from memory.
+   *
+   * Call this when the key is no longer needed to reduce the window
+   * of exposure in long-lived processes.
+   */
+  clearPrivateKey(): void {
+    this._privateKey = null;
   }
 
   /**
@@ -273,25 +287,23 @@ export class WalletManager {
     }
 
     // Lazy-import Privy SDK (optional dependency)
-    let PrivyClient: any; // Dynamic import of optional peer dep; type unknown at compile time
+    let PrivyClient: unknown; // Dynamic import of optional peer dep; type unknown at compile time
     try {
       // @ts-ignore - Optional peer dependency, may not be installed
       const privyModule = await import('@privy-io/server-auth');
-      PrivyClient = (privyModule as any).PrivyClient;
+      PrivyClient = (privyModule as Record<string, unknown>)['PrivyClient'];
     } catch {
       throw new InvarianceError(
-        ErrorCode.WALLET_NOT_CONNECTED,
-        'Install @privy-io/server-auth: pnpm add @privy-io/server-auth',
+        ErrorCode.INVALID_INPUT,
+        'Missing dependency: @privy-io/server-auth is required for embedded wallet creation. Install with: pnpm add @privy-io/server-auth',
       );
     }
 
     // Create Privy client and embedded wallet
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    const privy = new PrivyClient(privyConfig.appId, privyConfig.appSecret);
+    const privy = new (PrivyClient as new (appId: string, appSecret: string) => { createWallet: (opts: Record<string, never>) => Promise<{ address: string }> })(privyConfig.appId, privyConfig.appSecret);
 
     // Create a new user and embedded wallet using Privy's API
     // Note: This creates a wallet that's controlled by Privy
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const wallet = await privy.createWallet({
       // Privy will generate a new wallet address
     });
@@ -334,8 +346,13 @@ export class WalletManager {
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid fund amount: ${opts.amount}. Must be a positive number.`);
     }
-    if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    if (!address) {
       throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid recipient address: ${address}`);
+    }
+    try {
+      getAddress(address); // EIP-55 checksum validation
+    } catch {
+      throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid recipient address (failed EIP-55 checksum): ${address}`);
     }
 
     const token = opts.token ?? 'USDC';

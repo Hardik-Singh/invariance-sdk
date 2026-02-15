@@ -304,6 +304,8 @@ export class ContractFactory {
   /** Get the API base URL for indexer calls */
   getApiBaseUrl(): string {
     if (this.config.apiBaseUrl) return this.config.apiBaseUrl;
+    const envUrl = typeof process !== 'undefined' ? process.env['INVARIANCE_API_URL'] : undefined;
+    if (envUrl) return envUrl;
     return this.config.chain === 'base'
       ? 'https://api.useinvariance.com'
       : 'https://api-sepolia.useinvariance.com';

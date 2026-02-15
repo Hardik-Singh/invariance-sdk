@@ -105,7 +105,8 @@ export function toBytes32(id: string): `0x${string}` {
         `Hex ID exceeds 32 bytes: "${id}". Use a shorter identifier or hash it first.`,
       );
     }
-    return `0x${hexPart.padEnd(64, '0')}`;
+    // Left-pad hex values to preserve numeric semantics (0x1 → 0x0100...00, not 0x1000...00)
+    return `0x${hexPart.padStart(64, '0')}`;
   }
 
   // Encode string to bytes32 by padding
@@ -136,12 +137,14 @@ export function fromBytes32(bytes: `0x${string}`): string {
   try {
     decoded = hexToString(`0x${trimmed}`);
   } catch {
+    console.warn(`[Invariance] fromBytes32: failed to decode hex as UTF-8 string, returning raw hex: ${bytes}`);
     return bytes;
   }
   // If decoded string contains replacement characters or non-printable bytes,
   // it's likely a raw hash — return the original hex to ensure round-trip safety
   const reencoded = stringToHex(decoded).slice(2);
   if (/[\uFFFD]/.test(decoded) || reencoded.toLowerCase() !== trimmed.toLowerCase()) {
+    console.warn(`[Invariance] fromBytes32: round-trip decode mismatch, returning raw hex: ${bytes}`);
     return bytes;
   }
   return decoded;
@@ -160,6 +163,8 @@ export interface TxReceipt {
 export interface WaitForReceiptOptions {
   /** Skip waiting and return an optimistic result with only the txHash */
   optimistic?: boolean;
+  /** Transaction confirmation timeout in milliseconds (default: 30000) */
+  timeout?: number;
 }
 
 /**
@@ -189,7 +194,7 @@ export async function waitForReceipt(
 
   const receipt = await publicClient.waitForTransactionReceipt({
     hash: txHash,
-    timeout: 30_000,
+    timeout: options?.timeout ?? 30_000,
     confirmations: 1,
   });
 
@@ -484,14 +489,20 @@ export function mapContractError(error: unknown): InvarianceError {
     const errorName = revertError.data?.errorName;
     if (errorName && errorName in CONTRACT_ERROR_MAP) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      return new InvarianceError(CONTRACT_ERROR_MAP[errorName]!, errorName);
+      const mapped = new InvarianceError(CONTRACT_ERROR_MAP[errorName]!, errorName);
+      mapped.cause = error;
+      return mapped;
     }
-    return new InvarianceError(ErrorCode.TX_REVERTED, revertError.message);
+    const mapped = new InvarianceError(ErrorCode.TX_REVERTED, revertError.message);
+    mapped.cause = error;
+    return mapped;
   }
 
   // Generic error fallback
   const message = error instanceof Error ? error.message : 'Unknown contract error';
-  return new InvarianceError(ErrorCode.NETWORK_ERROR, message);
+  const mapped = new InvarianceError(ErrorCode.NETWORK_ERROR, message);
+  mapped.cause = error;
+  return mapped;
 }
 
 /*//////////////////////////////////////////////////////////////
@@ -680,7 +691,8 @@ export async function generatePlatformAttestation(
     return generatePlatformCommitment(event);
   }
 
-  const baseUrl = apiBaseUrl ?? 'https://api.useinvariance.com';
+  const envUrl = typeof process !== 'undefined' ? process.env['INVARIANCE_API_URL'] : undefined;
+  const baseUrl = apiBaseUrl ?? envUrl ?? 'https://api.useinvariance.com';
 
   try {
     const response = await fetch(`${baseUrl}/v1/attest`, {

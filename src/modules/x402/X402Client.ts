@@ -70,8 +70,7 @@ interface ClientEvmSigner {
  * payment creation and verification.
  */
 export class X402PaymentClient {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private client: any | null = null;
+  private client: unknown = null;
   private settings: X402Settings = {};
   private readonly chainId: number;
 
