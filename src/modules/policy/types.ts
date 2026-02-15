@@ -68,7 +68,14 @@ export type BuiltInTemplate =
   | 'defi-trading'
   | 'content-agent'
   | 'research-agent'
-  | 'full-autonomy';
+  | 'full-autonomy'
+  | 'mev-bot'
+  | 'social-agent'
+  | 'cross-chain-bridge'
+  | 'payment-delegation'
+  | 'iot-device'
+  | 'government-benefits'
+  | 'identity-verifier';
 
 /** A policy template definition */
 export interface PolicyTemplate {

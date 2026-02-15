@@ -59,6 +59,76 @@ const BUILT_IN_TEMPLATES: Record<BuiltInTemplate, PolicyTemplate> = {
       { type: 'max-spend', config: { amount: '100000', period: '24h' } },
     ],
   },
+  'mev-bot': {
+    name: 'mev-bot',
+    description: 'MEV bot: $50k daily, swap/arbitrage/liquidate/flashloan, high rate limit',
+    builtin: true,
+    rules: [
+      { type: 'max-spend', config: { amount: '50000', period: '24h' } },
+      { type: 'action-whitelist', config: { actions: ['swap', 'arbitrage', 'liquidate', 'flashloan'] } },
+      { type: 'rate-limit', config: { max: 1000, window: 'PT1H' } },
+    ],
+  },
+  'social-agent': {
+    name: 'social-agent',
+    description: 'Social agent: no spending, post/reply/moderate, rate limited with cooldown',
+    builtin: true,
+    rules: [
+      { type: 'max-spend', config: { amount: '0' } },
+      { type: 'action-whitelist', config: { actions: ['post', 'reply', 'like', 'share', 'moderate', 'report'] } },
+      { type: 'rate-limit', config: { max: 200, window: 'PT1H' } },
+      { type: 'cooldown', config: { duration: 'PT30S' } },
+    ],
+  },
+  'cross-chain-bridge': {
+    name: 'cross-chain-bridge',
+    description: 'Cross-chain bridge: $25k daily, bridge/swap/approve/claim operations',
+    builtin: true,
+    rules: [
+      { type: 'max-spend', config: { amount: '25000', period: '24h' } },
+      { type: 'action-whitelist', config: { actions: ['bridge', 'swap', 'approve', 'claim', 'query'] } },
+    ],
+  },
+  'payment-delegation': {
+    name: 'payment-delegation',
+    description: 'Payment delegation: $5k daily, transfer/approve/schedule, business hours only',
+    builtin: true,
+    rules: [
+      { type: 'max-spend', config: { amount: '5000', period: '24h' } },
+      { type: 'action-whitelist', config: { actions: ['transfer', 'approve', 'schedule', 'cancel'] } },
+      { type: 'time-window', config: { start: '09:00', end: '17:00', timezone: 'UTC' } },
+    ],
+  },
+  'iot-device': {
+    name: 'iot-device',
+    description: 'IoT device: zero spending, read-only operations, high rate limit',
+    builtin: true,
+    rules: [
+      { type: 'max-spend', config: { amount: '0' } },
+      { type: 'action-whitelist', config: { actions: ['read', 'query', 'report', 'ping', 'status'] } },
+      { type: 'rate-limit', config: { max: 10000, window: 'PT1H' } },
+    ],
+  },
+  'government-benefits': {
+    name: 'government-benefits',
+    description: 'Government benefits: $10k daily, distribute/verify/audit, daytime hours',
+    builtin: true,
+    rules: [
+      { type: 'max-spend', config: { amount: '10000', period: '24h' } },
+      { type: 'action-whitelist', config: { actions: ['distribute', 'verify-eligibility', 'audit', 'query', 'attest'] } },
+      { type: 'time-window', config: { start: '06:00', end: '22:00', timezone: 'UTC' } },
+    ],
+  },
+  'identity-verifier': {
+    name: 'identity-verifier',
+    description: 'Identity verifier: no spending, verify/revoke/attest/audit, rate limited',
+    builtin: true,
+    rules: [
+      { type: 'max-spend', config: { amount: '0' } },
+      { type: 'action-whitelist', config: { actions: ['verify', 'revoke', 'query', 'attest', 'audit'] } },
+      { type: 'rate-limit', config: { max: 500, window: 'PT1H' } },
+    ],
+  },
 };
 
 /** Custom templates registered at runtime */

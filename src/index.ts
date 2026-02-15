@@ -343,6 +343,86 @@ export type { PaymentOptions, RequirePaymentConfig, PaymentGatedAuthorization } 
 export { verifyWebhookSignature } from './utils/webhook.js';
 
 // ============================================================================
+// Platform Adapters
+// ============================================================================
+
+export { RuntimeHookAdapter } from './adapters/RuntimeHookAdapter.js';
+export type {
+  ActionContext,
+  BeforeActionResult,
+  AfterActionResult,
+  RuntimeHooks,
+} from './adapters/RuntimeHookAdapter.js';
+
+export { MultiAgentComposer } from './adapters/MultiAgentComposer.js';
+export type {
+  CrewRole,
+  CrewMember,
+  SetupCrewOptions,
+  CrewSetupResult,
+} from './adapters/MultiAgentComposer.js';
+
+export { MarketplacePlugin } from './adapters/MarketplacePlugin.js';
+export type {
+  PublishAgentOptions,
+  PublishResult,
+  HireWithEscrowOptions,
+} from './adapters/MarketplacePlugin.js';
+
+export { ReputationBridge } from './adapters/ReputationBridge.js';
+export type {
+  ExternalScore,
+  AggregationWeights,
+  AggregatedReputation,
+} from './adapters/ReputationBridge.js';
+
+export { CrossChainEscrow } from './adapters/CrossChainEscrow.js';
+export type {
+  ChainId,
+  CrossChainEscrowOptions,
+  CrossChainEscrowResult,
+} from './adapters/CrossChainEscrow.js';
+
+export { IdentityGatekeeper } from './adapters/IdentityGatekeeper.js';
+export type {
+  VerificationCredential,
+  VerifyAndGateOptions,
+  AccessLogEntry,
+} from './adapters/IdentityGatekeeper.js';
+
+export { BCIIntentVerifier } from './adapters/BCIIntentVerifier.js';
+export type {
+  BCISignal,
+  ConfidenceThresholds,
+  BCIVerificationResult,
+} from './adapters/BCIIntentVerifier.js';
+
+export { MEVComplianceKit } from './adapters/MEVComplianceKit.js';
+export type {
+  RegisterBotOptions,
+  RegisteredBot,
+  ExtractionLog,
+} from './adapters/MEVComplianceKit.js';
+
+export { GovernmentComplianceKit } from './adapters/GovernmentComplianceKit.js';
+export type {
+  AgencyRole,
+  SetupAgencyOptions,
+  AgencySetupResult,
+  Milestone,
+  MilestoneEscrowResult,
+  DistributeBenefitsOptions,
+  DistributionResult,
+} from './adapters/GovernmentComplianceKit.js';
+
+export { SocialGraphAdapter } from './adapters/SocialGraphAdapter.js';
+export type {
+  SocialLink,
+  TrustNode,
+  TrustGraph,
+} from './adapters/SocialGraphAdapter.js';
+
+// ============================================================================
 // Wallet Utilities (re-exported from viem for convenience)
 // ============================================================================
 
