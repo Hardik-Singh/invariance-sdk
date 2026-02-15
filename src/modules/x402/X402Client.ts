@@ -3,10 +3,10 @@
  *
  * Wraps `@x402/core` and `@x402/evm` to handle payment creation,
  * verification, and proof retrieval for the Invariance SDK.
+ *
+ * Requires optional peer dependencies: `@x402/core`, `@x402/evm`.
+ * Install them with: `pnpm add @x402/core @x402/evm`
  */
-import { x402Client } from '@x402/core/client';
-import { ExactEvmScheme } from '@x402/evm/exact/client';
-import type { ClientEvmSigner } from '@x402/evm';
 import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../../errors/InvarianceError.js';
 import type { PaymentReceipt, PaymentVerification, X402Settings } from './types.js';
@@ -28,6 +28,40 @@ const USDC_TOKENS: Record<number, { address: `0x${string}`; name: string; versio
 /** Default facilitator URL */
 const DEFAULT_FACILITATOR_URL = 'https://x402.org/facilitator';
 
+// Lazy-loaded x402 modules (optional peer deps)
+let _x402Core: typeof import('@x402/core/client') | null = null;
+let _x402Evm: typeof import('@x402/evm/exact/client') | null = null;
+
+async function loadX402Modules(): Promise<{
+  x402Client: typeof import('@x402/core/client').x402Client;
+  ExactEvmScheme: typeof import('@x402/evm/exact/client').ExactEvmScheme;
+}> {
+  if (!_x402Core || !_x402Evm) {
+    try {
+      [_x402Core, _x402Evm] = await Promise.all([
+        import('@x402/core/client'),
+        import('@x402/evm/exact/client'),
+      ]);
+    } catch {
+      throw new InvarianceError(
+        ErrorCode.PAYMENT_FAILED,
+        'x402 payment modules not installed. Install them with: pnpm add @x402/core @x402/evm',
+      );
+    }
+  }
+  return { x402Client: _x402Core!.x402Client, ExactEvmScheme: _x402Evm!.ExactEvmScheme };
+}
+
+interface ClientEvmSigner {
+  address: string;
+  signTypedData: (message: {
+    domain: Record<string, unknown>;
+    types: Record<string, unknown>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  }) => Promise<`0x${string}`>;
+}
+
 /**
  * Low-level client for x402 payment operations.
  *
@@ -35,7 +69,8 @@ const DEFAULT_FACILITATOR_URL = 'https://x402.org/facilitator';
  * payment creation and verification.
  */
 export class X402PaymentClient {
-  private client: x402Client | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private client: any | null = null;
   private settings: X402Settings = {};
   private readonly chainId: number;
 
@@ -51,11 +86,13 @@ export class X402PaymentClient {
   }
 
   /** Get or create the x402Client with registered EVM scheme */
-  private getClient(signer: ClientEvmSigner): x402Client {
+  private async getClient(signer: ClientEvmSigner): Promise<unknown> {
     if (!this.client) {
+      const { x402Client, ExactEvmScheme } = await loadX402Modules();
       const network: `${string}:${string}` = `eip155:${this.chainId}`;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       this.client = new x402Client()
-        .register(network, new ExactEvmScheme(signer));
+        .register(network, new ExactEvmScheme(signer as never));
     }
     return this.client;
   }
@@ -101,15 +138,13 @@ export class X402PaymentClient {
     action: string,
   ): Promise<PaymentReceipt> {
     try {
-      const _client = this.getClient(signer);
+      const _client = await this.getClient(signer);
       const usdcToken = this.getUsdcToken();
 
       // Convert amount to smallest unit (USDC has 6 decimals)
       const amountInUnits = Math.floor(parseFloat(amount) * 1_000_000).toString();
 
       // Create payment payload via x402 (v2 PaymentRequired shape)
-      // The `extra` field must include EIP-712 domain params (name, version)
-      // required by @x402/evm for EIP-3009 transferWithAuthorization signing
       const network: `${string}:${string}` = `eip155:${this.chainId}`;
       const paymentRequired = {
         x402Version: 2 as const,
@@ -132,7 +167,8 @@ export class X402PaymentClient {
         }],
       };
 
-      const payload = await _client.createPaymentPayload(paymentRequired as Parameters<typeof _client.createPaymentPayload>[0]);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      const payload = await (_client as any).createPaymentPayload(paymentRequired);
 
       // Generate a deterministic payment ID
       const paymentId = `x402_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -148,6 +184,7 @@ export class X402PaymentClient {
         proof: JSON.stringify(payload),
       };
     } catch (err) {
+      if (err instanceof InvarianceError) throw err;
       throw new InvarianceError(
         ErrorCode.PAYMENT_FAILED,
         `x402 payment creation failed: ${err instanceof Error ? err.message : 'unknown error'}`,

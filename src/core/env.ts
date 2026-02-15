@@ -1,8 +1,13 @@
-import dotenv from 'dotenv';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { InvarianceConfig } from '@invariance/common';
 
-dotenv.config();
+// Load dotenv if available (dev/example usage only — not a runtime dependency)
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('dotenv').config();
+} catch {
+  // dotenv not installed — environment variables must be set externally
+}
 
 const VALID_CHAINS = ['base', 'base-sepolia'] as const;
 
@@ -17,6 +22,9 @@ const VALID_CHAINS = ['base', 'base-sepolia'] as const;
  *
  * Only fields with a corresponding env var present are included in the
  * returned partial config.
+ *
+ * Note: `dotenv` is loaded opportunistically. If it is not installed,
+ * environment variables must be set by the host process.
  */
 export function loadEnvConfig(): Partial<InvarianceConfig> {
   const config: Partial<InvarianceConfig> = {};
