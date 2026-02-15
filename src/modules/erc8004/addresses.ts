@@ -1,8 +1,13 @@
 /**
  * Canonical ERC-8004 registry addresses per chain.
  *
- * @todo These are pre-deployment placeholder addresses (sequential pattern).
- * Replace with actual deployed contract addresses after ERC-8004 registry deployment.
+ * **IMPORTANT — Testnet placeholders only.**
+ * The addresses below are synthetic pre-deployment values (sequential hex pattern).
+ * They do NOT correspond to deployed contracts. Before using ERC-8004 features in
+ * production, you **must** override these with real deployed addresses via
+ * `Invariance({ erc8004: { addresses: { identity, reputation, validation } } })`.
+ *
+ * @todo Replace with actual deployed contract addresses after ERC-8004 registry deployment.
  */
 
 import type { ERC8004RegistryAddresses } from './types.js';
@@ -36,7 +41,15 @@ export const ERC8004_REGISTRY_ADDRESSES: Record<number, ERC8004RegistryAddresses
  * @returns Registry addresses or undefined if not supported
  */
 export function getERC8004Addresses(chainId: number): ERC8004RegistryAddresses | undefined {
-  return ERC8004_REGISTRY_ADDRESSES[chainId];
+  const addresses = ERC8004_REGISTRY_ADDRESSES[chainId];
+  if (addresses) {
+    // Warn developers that these are placeholder addresses
+    console.warn(
+      `[Invariance] ERC-8004 addresses for chain ${chainId} are testnet placeholders. ` +
+      `Override with deployed contract addresses before production use.`,
+    );
+  }
+  return addresses;
 }
 
 /**

@@ -57,6 +57,11 @@ export class WalletManager {
 
   /**
    * Store a private key for later retrieval via `exportPrivateKey()`.
+   *
+   * **WARNING: Security-sensitive.** The key is held in memory in plaintext.
+   * Avoid calling this in browser environments or long-lived processes.
+   * Prefer hardware wallets or KMS-backed signers for production use.
+   *
    * @param key - Hex-encoded private key (with 0x prefix)
    */
   setPrivateKey(key: string): void {
@@ -65,6 +70,11 @@ export class WalletManager {
 
   /**
    * Return the stored private key, if one was set.
+   *
+   * **WARNING: Security-sensitive.** This exposes the raw private key.
+   * Never log, serialize, or transmit the returned value. Callers are
+   * responsible for handling the key securely.
+   *
    * @returns The hex-encoded private key, or null if not available
    */
   exportPrivateKey(): string | null {
