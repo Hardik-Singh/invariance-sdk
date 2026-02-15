@@ -3,6 +3,9 @@
  */
 export type { GasEstimate, GasBalance } from '@invariance/common';
 
+/** Gas strategy types */
+export type GasStrategy = 'standard' | 'fast' | 'abstracted' | 'sponsored';
+
 /** Options for gas estimation */
 export interface EstimateGasOptions {
   action: string;

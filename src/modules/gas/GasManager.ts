@@ -101,6 +101,78 @@ export class GasManager {
   }
 
   /**
+   * Sponsor a user operation via Coinbase Paymaster on Base.
+   *
+   * Sends the user operation to the paymaster endpoint for gas sponsorship.
+   * Requires `PAYMASTER_URL` and `PAYMASTER_API_KEY` environment variables.
+   *
+   * @param userOp - The user operation to sponsor
+   * @returns The sponsored user operation with paymaster fields filled in
+   */
+  async sponsorUserOperation(userOp: {
+    sender: string;
+    nonce: string;
+    callData: string;
+    callGasLimit: string;
+    verificationGasLimit: string;
+    preVerificationGas: string;
+    maxFeePerGas: string;
+    maxPriorityFeePerGas: string;
+  }): Promise<{
+    paymasterAndData: string;
+    callGasLimit: string;
+    verificationGasLimit: string;
+    preVerificationGas: string;
+  }> {
+    this.telemetry.track('gas.sponsor');
+
+    const paymasterUrl = process.env['PAYMASTER_URL'];
+    const apiKey = process.env['PAYMASTER_API_KEY'];
+
+    if (!paymasterUrl || !apiKey) {
+      throw new Error('PAYMASTER_URL and PAYMASTER_API_KEY environment variables are required for gas sponsorship');
+    }
+
+    const response = await fetch(paymasterUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'pm_sponsorUserOperation',
+        params: [userOp, { chainId: '0x2105' }], // Base mainnet
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Paymaster request failed: ${response.status}`);
+    }
+
+    const json = await response.json() as {
+      result?: {
+        paymasterAndData: string;
+        callGasLimit: string;
+        verificationGasLimit: string;
+        preVerificationGas: string;
+      };
+      error?: { message: string };
+    };
+
+    if (json.error) {
+      throw new Error(`Paymaster error: ${json.error.message}`);
+    }
+
+    if (!json.result) {
+      throw new Error('Paymaster returned empty result');
+    }
+
+    return json.result;
+  }
+
+  /**
    * Get gas-related balances for the current wallet.
    *
    * Returns ETH and USDC balances and whether gas abstraction

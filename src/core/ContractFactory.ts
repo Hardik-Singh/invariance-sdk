@@ -177,7 +177,7 @@ export class ContractFactory {
   /**
    * Get the gas strategy.
    */
-  getGasStrategy(): 'standard' | 'fast' | 'abstracted' {
+  getGasStrategy(): 'standard' | 'fast' | 'abstracted' | 'sponsored' {
     return this.config.gasStrategy ?? 'standard';
   }
 
