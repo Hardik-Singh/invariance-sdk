@@ -13,7 +13,7 @@ import {
   hashMetadata,
   mapSeverity,
   generateActorSignature,
-  generatePlatformCommitment,
+  generatePlatformAttestation,
   convertToCSV,
   actorTypeToEnum,
 } from '../../utils/contract-helpers.js';
@@ -135,7 +135,11 @@ export class EventLedger {
       // Generate dual signatures
       const walletClient = this.contracts.getWalletClient();
       const actorSig = await generateActorSignature({ action: event.action, metadata }, walletClient);
-      const platformSig = generatePlatformCommitment({ action: event.action, metadata });
+      const platformSig = await generatePlatformAttestation(
+        { action: event.action, metadata },
+        this.contracts.getApiKey(),
+        this.contracts.getApiBaseUrl(),
+      );
 
       // Prepare LogInput
       const logInput: OnChainLogInput = {
@@ -224,7 +228,11 @@ export class EventLedger {
         const metadata = event.metadata ?? {};
         const metadataHash = hashMetadata(metadata);
         const actorSig = await generateActorSignature({ action: event.action, metadata }, walletClient);
-        const platformSig = generatePlatformCommitment({ action: event.action, metadata });
+        const platformSig = await generatePlatformAttestation(
+          { action: event.action, metadata },
+          this.contracts.getApiKey(),
+          this.contracts.getApiBaseUrl(),
+        );
 
         logInputs.push({
           actorIdentityId: identityId,

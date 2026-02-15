@@ -98,6 +98,11 @@ export class ContractFactory {
     const pollingInterval = config.pollingInterval ?? this.chainConfig.pollingInterval;
     this.publicClient = createPublicClient({ chain, transport: http(rpcUrl), pollingInterval }) as PublicClient;
 
+    // Warn if using mainnet without API key (unsigned attestations)
+    if (config.chain === 'base' && !config.apiKey) {
+      console.warn('[Invariance] No API key configured. Platform attestations will use unsigned commitments. Set apiKey for production use.');
+    }
+
     // Create WebSocket-backed client for faster receipt watching (instant block notifications)
     if (config.wsRpcUrl) {
       try {

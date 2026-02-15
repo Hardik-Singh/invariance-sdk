@@ -654,6 +654,60 @@ export function generatePlatformCommitment(event: { action: string; metadata?: R
   return keccak256(toHex(payload));
 }
 
+let _attestationWarningLogged = false;
+
+/**
+ * Generate a real ECDSA platform attestation via the backend API.
+ *
+ * When an API key is provided, calls POST /v1/attest to obtain a server-signed
+ * attestation. Without an API key, falls back to the unsigned keccak256 commitment.
+ *
+ * @param event - The ledger event being attested
+ * @param apiKey - Optional API key for authenticated attestation
+ * @param apiBaseUrl - Optional API base URL override
+ * @returns The platform signature (ECDSA if API key provided, keccak256 hash otherwise)
+ */
+export async function generatePlatformAttestation(
+  event: { action: string; metadata?: Record<string, unknown> },
+  apiKey?: string,
+  apiBaseUrl?: string,
+): Promise<string> {
+  if (!apiKey) {
+    if (!_attestationWarningLogged) {
+      _attestationWarningLogged = true;
+      console.warn('[Invariance] No API key configured. Platform attestations will use unsigned commitments.');
+    }
+    return generatePlatformCommitment(event);
+  }
+
+  const baseUrl = apiBaseUrl ?? 'https://api.useinvariance.com';
+
+  try {
+    const response = await fetch(`${baseUrl}/v1/attest`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        action: event.action,
+        metadata: event.metadata ?? {},
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`[Invariance] Attestation API returned ${response.status}. Falling back to unsigned commitment.`);
+      return generatePlatformCommitment(event);
+    }
+
+    const result = await response.json() as { data: { signature: string } };
+    return result.data.signature;
+  } catch {
+    console.warn('[Invariance] Attestation API unreachable. Falling back to unsigned commitment.');
+    return generatePlatformCommitment(event);
+  }
+}
+
 /**
  * Convert array of ledger entries to CSV format.
  *
