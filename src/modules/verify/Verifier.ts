@@ -6,7 +6,7 @@ import { InvarianceError } from '../../errors/InvarianceError.js';
 import { IndexerClient } from '../../utils/indexer-client.js';
 import type { EscrowState } from '@invariance/common';
 import { decodeEventLog } from 'viem';
-import { InvarianceLedgerAbi, InvarianceIntentAbi } from '../../contracts/abis/index.js';
+import { InvarianceLedgerAbi, InvarianceIntentAbi, InvarianceCompactLedgerAbi, InvarianceAtomicVerifierAbi } from '../../contracts/abis/index.js';
 import {
   toBytes32,
   fromBytes32,
@@ -168,6 +168,32 @@ export class Verifier {
             break;
           }
         } catch { /* not an intent event */ }
+
+        // Try CompactLedger EntryLogged
+        try {
+          const decoded = decodeEventLog({
+            abi: InvarianceCompactLedgerAbi,
+            data: log.data as `0x${string}`,
+            topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+          });
+          if (decoded.eventName === 'EntryLogged') {
+            entryId = (decoded.args as { entryId: `0x${string}` }).entryId;
+            break;
+          }
+        } catch { /* not a compact ledger event */ }
+
+        // Try AtomicVerifier AtomicVerification
+        try {
+          const decoded = decodeEventLog({
+            abi: InvarianceAtomicVerifierAbi,
+            data: log.data as `0x${string}`,
+            topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+          });
+          if (decoded.eventName === 'AtomicVerification') {
+            entryId = (decoded.args as { entryId: `0x${string}` }).entryId;
+            break;
+          }
+        } catch { /* not an atomic verifier event */ }
       }
 
       if (!entryId) {
@@ -675,6 +701,61 @@ export class Verifier {
         explorerUrl: `${explorerBase}/tx/${txHashes[i]!}`,
       };
     });
+  }
+
+  /**
+   * Verify a CompactLedger commitment hash on-chain.
+   *
+   * Reads the stored commitment from the CompactLedger contract and
+   * optionally reconstructs the expected commitment to compare.
+   *
+   * @param entryId - The entry ID to verify
+   * @param expected - Optional expected values to reconstruct and compare commitment
+   * @returns Whether the commitment exists and matches
+   */
+  async verifyCommitment(entryId: string, expected?: {
+    actorAddress: string;
+    action: string;
+    metadataHash: string;
+    proofHash: string;
+    timestamp: number;
+  }): Promise<{ exists: boolean; matches: boolean; commitmentHash: string }> {
+    this.telemetry.track('verify.commitment');
+
+    try {
+      const compactLedger = this.contracts.getContract('compactLedger');
+      const getCommitmentFn = compactLedger.read['getCommitment'];
+      if (!getCommitmentFn) {
+        throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'getCommitment function not found');
+      }
+
+      const commitment = await getCommitmentFn([toBytes32(entryId)]) as `0x${string}`;
+      const exists = commitment !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+      let matches = false;
+      if (exists && expected) {
+        // Reconstruct expected commitment: keccak256(abi.encodePacked(actorAddress, action, metadataHash, proofHash, timestamp))
+        const { keccak256, encodePacked } = await import('viem');
+        const reconstructed = keccak256(
+          encodePacked(
+            ['address', 'string', 'bytes32', 'bytes32', 'uint256'],
+            [
+              expected.actorAddress as `0x${string}`,
+              expected.action,
+              expected.metadataHash as `0x${string}`,
+              expected.proofHash as `0x${string}`,
+              BigInt(expected.timestamp),
+            ],
+          ),
+        );
+        matches = reconstructed === commitment;
+      }
+
+      return { exists, matches, commitmentHash: commitment };
+    } catch (err) {
+      if (err instanceof InvarianceError) throw err;
+      throw mapContractError(err);
+    }
   }
 
   /**

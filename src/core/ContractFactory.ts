@@ -21,9 +21,11 @@ import {
   InvarianceRegistryAbi,
   InvarianceHireAbi,
   MockUSDCAbi,
+  InvarianceCompactLedgerAbi,
+  InvarianceAtomicVerifierAbi,
 } from '../contracts/abis/index.js';
 
-type ContractName = 'identity' | 'policy' | 'ledger' | 'intent' | 'escrow' | 'review' | 'registry' | 'hire' | 'mockUsdc';
+type ContractName = 'identity' | 'policy' | 'ledger' | 'intent' | 'escrow' | 'review' | 'registry' | 'hire' | 'mockUsdc' | 'compactLedger' | 'atomicVerifier';
 
 const ABI_MAP = {
   identity: InvarianceIdentityAbi,
@@ -35,6 +37,8 @@ const ABI_MAP = {
   registry: InvarianceRegistryAbi,
   hire: InvarianceHireAbi,
   mockUsdc: MockUSDCAbi,
+  compactLedger: InvarianceCompactLedgerAbi,
+  atomicVerifier: InvarianceAtomicVerifierAbi,
 } as const;
 
 const ADDRESS_KEY_MAP: Record<ContractName, keyof ContractAddresses> = {
@@ -47,6 +51,8 @@ const ADDRESS_KEY_MAP: Record<ContractName, keyof ContractAddresses> = {
   registry: 'registry',
   hire: 'hire',
   mockUsdc: 'usdc',
+  compactLedger: 'compactLedger',
+  atomicVerifier: 'atomicVerifier',
 };
 
 /**

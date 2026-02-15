@@ -1,0 +1,68 @@
+export const InvarianceCompactLedgerAbi = [
+  {
+    type: 'function',
+    name: 'log',
+    inputs: [
+      {
+        name: 'input',
+        type: 'tuple',
+        components: [
+          { name: 'actorIdentityId', type: 'bytes32' },
+          { name: 'actorAddress', type: 'address' },
+          { name: 'action', type: 'string' },
+          { name: 'category', type: 'string' },
+          { name: 'metadataHash', type: 'bytes32' },
+          { name: 'proofHash', type: 'bytes32' },
+          { name: 'severity', type: 'uint8' },
+        ],
+      },
+      { name: 'actorSig', type: 'bytes' },
+      { name: 'platformSig', type: 'bytes' },
+    ],
+    outputs: [{ name: 'entryId', type: 'bytes32' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'getCommitment',
+    inputs: [{ name: 'entryId', type: 'bytes32' }],
+    outputs: [{ name: 'commitmentHash', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'getEntryCount',
+    inputs: [],
+    outputs: [{ name: 'count', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'platformSigner',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'entries',
+    inputs: [{ name: 'entryId', type: 'bytes32' }],
+    outputs: [{ name: 'commitmentHash', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    name: 'EntryLogged',
+    inputs: [
+      { name: 'entryId', type: 'bytes32', indexed: true },
+      { name: 'actorIdentityId', type: 'bytes32', indexed: true },
+      { name: 'actorAddress', type: 'address', indexed: true },
+      { name: 'action', type: 'string', indexed: false },
+      { name: 'category', type: 'string', indexed: false },
+      { name: 'metadataHash', type: 'bytes32', indexed: false },
+      { name: 'proofHash', type: 'bytes32', indexed: false },
+      { name: 'severity', type: 'uint8', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
+] as const;

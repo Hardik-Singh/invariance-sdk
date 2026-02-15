@@ -7,3 +7,5 @@ export { InvarianceReviewAbi } from './InvarianceReview.js';
 export { InvarianceRegistryAbi } from './InvarianceRegistry.js';
 export { InvarianceHireAbi } from './InvarianceHire.js';
 export { MockUSDCAbi } from './MockUSDC.js';
+export { InvarianceCompactLedgerAbi } from './InvarianceCompactLedger.js';
+export { InvarianceAtomicVerifierAbi } from './InvarianceAtomicVerifier.js';
