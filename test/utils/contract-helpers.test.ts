@@ -8,6 +8,8 @@ import {
   fromBytes32,
   waitForReceipt,
   mapContractError,
+  generateActorSignatureEIP712,
+  generatePlatformAttestationEIP712,
 } from '../../src/utils/contract-helpers.js';
 import { InvarianceError } from '../../src/errors/InvarianceError.js';
 
@@ -223,6 +225,103 @@ describe('contract-helpers', () => {
     it('maps unknown non-Error to NETWORK_ERROR', () => {
       const result = mapContractError('some string error');
       expect(result.code).toBe(ErrorCode.NETWORK_ERROR);
+    });
+  });
+
+  describe('generateActorSignatureEIP712', () => {
+    const domain = {
+      name: 'InvarianceCompactLedger',
+      version: '1',
+      chainId: 84532,
+      verifyingContract: '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`,
+    };
+
+    const input = {
+      actorIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      actorAddress: '0x1111111111111111111111111111111111111111',
+      action: 'test-action',
+      category: 'custom',
+      metadataHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+      proofHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+      severity: 0,
+    };
+
+    it('throws when wallet has no account', async () => {
+      const walletClient = { account: undefined } as never;
+      await expect(generateActorSignatureEIP712(input, domain, walletClient))
+        .rejects.toThrow('EIP-712 signing requires a connected wallet account');
+    });
+
+    it('calls signTypedData with correct EIP-712 params', async () => {
+      const signTypedData = vi.fn().mockResolvedValue('0xsig');
+      const walletClient = {
+        account: { address: '0x1111111111111111111111111111111111111111' },
+        signTypedData,
+      } as never;
+
+      const result = await generateActorSignatureEIP712(input, domain, walletClient);
+
+      expect(result).toBe('0xsig');
+      expect(signTypedData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain,
+          primaryType: 'LogEntry',
+          message: expect.objectContaining({ action: 'test-action' }),
+        }),
+      );
+    });
+  });
+
+  describe('generatePlatformAttestationEIP712', () => {
+    const input = {
+      actorIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      actorAddress: '0x1111111111111111111111111111111111111111',
+      action: 'test-action',
+      category: 'custom',
+      metadataHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+      proofHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+      severity: 0,
+    };
+
+    it('throws when no API key is provided', async () => {
+      await expect(generatePlatformAttestationEIP712(input, undefined))
+        .rejects.toThrow('CompactLedger requires an API key');
+    });
+
+    it('throws when API returns non-OK response', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+
+      await expect(generatePlatformAttestationEIP712(input, 'inv_test_key'))
+        .rejects.toThrow('Platform attestation API returned 401');
+
+      vi.unstubAllGlobals();
+    });
+
+    it('calls /v1/attest with mode eip712 and returns signature', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { signature: '0xplatformsig' } }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const result = await generatePlatformAttestationEIP712(input, 'inv_test_key', 'https://api.test.com');
+
+      expect(result).toBe('0xplatformsig');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.test.com/v1/attest',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer inv_test_key',
+          }),
+        }),
+      );
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      expect(body.mode).toBe('eip712');
+      expect(body.input.action).toBe('test-action');
+
+      vi.unstubAllGlobals();
     });
   });
 });

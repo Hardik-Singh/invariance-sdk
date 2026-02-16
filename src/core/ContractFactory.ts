@@ -319,4 +319,25 @@ export class ContractFactory {
     }
     return walletClient.account.address;
   }
+
+  /**
+   * Get the EIP-712 domain for CompactLedger signatures.
+   *
+   * @returns EIP-712 domain with the CompactLedger contract address
+   */
+  getCompactLedgerDomain(): { name: string; version: string; chainId: number; verifyingContract: `0x${string}` } {
+    const address = this.addresses.compactLedger;
+    if (!address) {
+      throw new InvarianceError(
+        ErrorCode.NETWORK_ERROR,
+        'CompactLedger contract address not configured for this chain.',
+      );
+    }
+    return {
+      name: 'InvarianceCompactLedger',
+      version: '1',
+      chainId: this.chainConfig.id,
+      verifyingContract: address as `0x${string}`,
+    };
+  }
 }

@@ -6,6 +6,8 @@ import { ErrorCode } from '@invariance/common';
 import { InvarianceError } from '../errors/InvarianceError.js';
 import { InvarianceIntentAbi } from '../contracts/abis/index.js';
 import { InvarianceLedgerAbi } from '../contracts/abis/index.js';
+import { InvarianceCompactLedgerAbi } from '../contracts/abis/index.js';
+import { InvarianceAtomicVerifierAbi } from '../contracts/abis/index.js';
 import { InvarianceReviewAbi } from '../contracts/abis/index.js';
 import { InvarianceRegistryAbi } from '../contracts/abis/index.js';
 
@@ -624,6 +626,199 @@ export function parseEntryIdFromLogs(logs: readonly { topics: readonly string[];
   throw new InvarianceError(
     ErrorCode.TX_REVERTED,
     'EntryLogged event not found in transaction logs',
+  );
+}
+
+/** EIP-712 domain for CompactLedger signatures */
+export interface CompactLedgerDomain {
+  name: string;
+  version: string;
+  chainId: number;
+  verifyingContract: `0x${string}`;
+}
+
+/** EIP-712 type definition for CompactLedger LogEntry */
+const COMPACT_LEDGER_TYPES = {
+  LogEntry: [
+    { name: 'actorIdentityId', type: 'bytes32' },
+    { name: 'actorAddress', type: 'address' },
+    { name: 'action', type: 'string' },
+    { name: 'category', type: 'string' },
+    { name: 'metadataHash', type: 'bytes32' },
+    { name: 'proofHash', type: 'bytes32' },
+    { name: 'severity', type: 'uint8' },
+  ],
+} as const;
+
+/**
+ * Generate an EIP-712 typed-data actor signature for the CompactLedger.
+ *
+ * The CompactLedger contract verifies this signature on-chain via ECDSA.recover,
+ * so a real wallet signature is required (no keccak fallback).
+ *
+ * @param input - The compact log input struct fields
+ * @param domain - EIP-712 domain parameters
+ * @param walletClient - The actor's viem WalletClient (must have an account)
+ * @returns The EIP-712 signature as a hex string
+ */
+export async function generateActorSignatureEIP712(
+  input: {
+    actorIdentityId: `0x${string}`;
+    actorAddress: string;
+    action: string;
+    category: string;
+    metadataHash: `0x${string}`;
+    proofHash: `0x${string}`;
+    severity: number;
+  },
+  domain: CompactLedgerDomain,
+  walletClient: WalletClient,
+): Promise<`0x${string}`> {
+  const account = walletClient.account;
+  if (!account) {
+    throw new InvarianceError(
+      ErrorCode.WALLET_NOT_CONNECTED,
+      'EIP-712 signing requires a connected wallet account. No keccak fallback is available for CompactLedger.',
+    );
+  }
+  return walletClient.signTypedData({
+    account,
+    domain,
+    types: COMPACT_LEDGER_TYPES,
+    primaryType: 'LogEntry',
+    message: {
+      actorIdentityId: input.actorIdentityId,
+      actorAddress: input.actorAddress as `0x${string}`,
+      action: input.action,
+      category: input.category,
+      metadataHash: input.metadataHash,
+      proofHash: input.proofHash,
+      severity: input.severity,
+    },
+  });
+}
+
+/**
+ * Generate an EIP-712 platform attestation via the backend API.
+ *
+ * CompactLedger requires a real ECDSA signature from the platform signer.
+ * The keccak256 fallback will fail on-chain, so an API key is mandatory.
+ *
+ * @param input - The compact log input struct fields
+ * @param apiKey - API key for authenticated attestation (required)
+ * @param apiBaseUrl - Optional API base URL override
+ * @returns The platform's EIP-712 ECDSA signature
+ * @throws {InvarianceError} If no API key is provided
+ */
+export async function generatePlatformAttestationEIP712(
+  input: {
+    actorIdentityId: `0x${string}`;
+    actorAddress: string;
+    action: string;
+    category: string;
+    metadataHash: `0x${string}`;
+    proofHash: `0x${string}`;
+    severity: number;
+  },
+  apiKey: string | undefined,
+  apiBaseUrl?: string,
+): Promise<`0x${string}`> {
+  if (!apiKey) {
+    throw new InvarianceError(
+      ErrorCode.INVALID_INPUT,
+      'CompactLedger requires an API key for platform attestation. The keccak256 fallback is not a valid ECDSA signature and will revert on-chain. Set apiKey in your Invariance config.',
+    );
+  }
+
+  const envUrl = typeof process !== 'undefined' ? process.env['INVARIANCE_API_URL'] : undefined;
+  const baseUrl = apiBaseUrl ?? envUrl ?? 'https://api.useinvariance.com';
+
+  const response = await fetch(`${baseUrl}/v1/attest`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      mode: 'eip712',
+      input: {
+        actorIdentityId: input.actorIdentityId,
+        actorAddress: input.actorAddress,
+        action: input.action,
+        category: input.category,
+        metadataHash: input.metadataHash,
+        proofHash: input.proofHash,
+        severity: input.severity,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new InvarianceError(
+      ErrorCode.NETWORK_ERROR,
+      `Platform attestation API returned ${response.status}. CompactLedger requires a valid platform signature.`,
+    );
+  }
+
+  const result = await response.json() as { data: { signature: string } };
+  return result.data.signature as `0x${string}`;
+}
+
+/**
+ * Parse entryId from CompactLedger transaction logs.
+ * Looks for the EntryLogged event from the CompactLedger ABI.
+ *
+ * @param logs - Transaction receipt logs
+ * @returns The entry ID as bytes32 hex string
+ */
+export function parseCompactEntryIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: InvarianceCompactLedgerAbi,
+        data: log.data as `0x${string}`,
+        topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+      });
+      if (decoded.eventName === 'EntryLogged') {
+        return (decoded.args as { entryId: `0x${string}` }).entryId;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  throw new InvarianceError(
+    ErrorCode.TX_REVERTED,
+    'CompactLedger EntryLogged event not found in transaction logs',
+  );
+}
+
+/**
+ * Parse entryId from AtomicVerifier transaction logs.
+ * Looks for the AtomicVerification event.
+ *
+ * @param logs - Transaction receipt logs
+ * @returns The entry ID as bytes32 hex string
+ */
+export function parseAtomicEntryIdFromLogs(logs: readonly { topics: readonly string[]; data: string }[]): `0x${string}` {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: InvarianceAtomicVerifierAbi,
+        data: log.data as `0x${string}`,
+        topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+      });
+      if (decoded.eventName === 'AtomicVerification') {
+        return (decoded.args as { entryId: `0x${string}` }).entryId;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  throw new InvarianceError(
+    ErrorCode.TX_REVERTED,
+    'AtomicVerification event not found in transaction logs',
   );
 }
 

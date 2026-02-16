@@ -6,6 +6,8 @@ import { InvarianceEventEmitter } from '../../src/core/EventEmitter.js';
 import { Telemetry } from '../../src/core/Telemetry.js';
 import { InvarianceIntentAbi } from '../../src/contracts/abis/index.js';
 import { InvarianceLedgerAbi } from '../../src/contracts/abis/index.js';
+import { InvarianceCompactLedgerAbi } from '../../src/contracts/abis/index.js';
+import { InvarianceAtomicVerifierAbi } from '../../src/contracts/abis/index.js';
 import { InvarianceReviewAbi } from '../../src/contracts/abis/index.js';
 
 /** Base Sepolia config fixture */
@@ -150,6 +152,7 @@ export function createMockWalletClient() {
       type: 'local' as const,
     },
     signMessage: vi.fn().mockResolvedValue('0x' + 'ab'.repeat(65)),
+    signTypedData: vi.fn().mockResolvedValue('0x' + 'cd'.repeat(65)),
     getAddresses: vi.fn().mockResolvedValue(['0x1111111111111111111111111111111111111111']),
   };
 }
@@ -194,6 +197,46 @@ export function createMockEntryLoggedLog(entryId: `0x${string}`) {
   const data = encodeAbiParameters(
     [{ type: 'string' }, { type: 'string' }, { type: 'uint8' }, { type: 'uint256' }],
     ['test-action', 'custom', 0, 0n],
+  );
+  return { topics: topics as readonly string[], data };
+}
+
+/**
+ * Create a properly ABI-encoded mock log for the CompactLedger EntryLogged event.
+ */
+export function createMockCompactEntryLoggedLog(entryId: `0x${string}`) {
+  const topics = encodeEventTopics({
+    abi: InvarianceCompactLedgerAbi as Abi,
+    eventName: 'EntryLogged',
+    args: {
+      entryId,
+      actorIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      actorAddress: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+    },
+  });
+  const data = encodeAbiParameters(
+    [{ type: 'string' }, { type: 'string' }, { type: 'bytes32' }, { type: 'bytes32' }, { type: 'uint8' }, { type: 'uint256' }],
+    ['test-action', 'custom', '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, 0, 0n],
+  );
+  return { topics: topics as readonly string[], data };
+}
+
+/**
+ * Create a properly ABI-encoded mock log for the AtomicVerification event.
+ */
+export function createMockAtomicVerificationLog(entryId: `0x${string}`) {
+  const topics = encodeEventTopics({
+    abi: InvarianceAtomicVerifierAbi as Abi,
+    eventName: 'AtomicVerification',
+    args: {
+      entryId,
+      actorIdentityId: '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
+      actorAddress: '0x1111111111111111111111111111111111111111' as `0x${string}`,
+    },
+  });
+  const data = encodeAbiParameters(
+    [{ type: 'string' }],
+    ['test-action'],
   );
   return { topics: topics as readonly string[], data };
 }

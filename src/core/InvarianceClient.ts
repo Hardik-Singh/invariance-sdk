@@ -36,7 +36,9 @@ import { IntentProtocol } from '../modules/intent/IntentProtocol.js';
 import { PolicyEngine } from '../modules/policy/PolicyEngine.js';
 import { EscrowManager } from '../modules/escrow/EscrowManager.js';
 import { EventLedger } from '../modules/ledger/EventLedger.js';
+import { EventLedgerCompact } from '../modules/ledger/EventLedgerCompact.js';
 import { Verifier } from '../modules/verify/Verifier.js';
+import { AtomicVerifier } from '../modules/verify/AtomicVerifier.js';
 import { ReputationEngine } from '../modules/reputation/ReputationEngine.js';
 import { GasManager } from '../modules/gas/GasManager.js';
 import { X402Manager } from '../modules/x402/X402Manager.js';
@@ -118,7 +120,9 @@ export class Invariance {
   private _policy?: PolicyEngine;
   private _escrow?: EscrowManager;
   private _ledger?: EventLedger;
+  private _ledgerCompact?: EventLedgerCompact;
   private _verify?: VerifyProxy;
+  private _atomic?: AtomicVerifier;
   private _reputation?: ReputationEngine;
   private _gas?: GasManager;
   private _x402?: X402Manager;
@@ -353,6 +357,50 @@ export class Invariance {
       this._ledger = new EventLedger(this.contracts, this.events, this.telemetry);
     }
     return this._ledger;
+  }
+
+  /**
+   * Compact Event Ledger module (fraud-proof).
+   *
+   * Uses CompactLedger with EIP-712 dual signatures verified on-chain.
+   * Requires an API key for platform attestation.
+   *
+   * @example
+   * ```typescript
+   * const entry = await inv.ledgerCompact.log({
+   *   action: 'model-inference',
+   *   actor: { type: 'agent', address: '0xBot' },
+   * });
+   * ```
+   */
+  get ledgerCompact(): EventLedgerCompact {
+    this._autoInit();
+    if (!this._ledgerCompact) {
+      this._ledgerCompact = new EventLedgerCompact(this.contracts, this.events, this.telemetry);
+    }
+    return this._ledgerCompact;
+  }
+
+  /**
+   * Atomic Verifier module.
+   *
+   * Identity check + policy eval + CompactLedger log in a single transaction.
+   * Requires an API key for platform attestation.
+   *
+   * @example
+   * ```typescript
+   * const entry = await inv.atomic.verifyAndLog({
+   *   action: 'swap',
+   *   actor: { type: 'agent', address: '0xBot' },
+   * });
+   * ```
+   */
+  get atomic(): AtomicVerifier {
+    this._autoInit();
+    if (!this._atomic) {
+      this._atomic = new AtomicVerifier(this.contracts, this.events, this.telemetry);
+    }
+    return this._atomic;
   }
 
   /**
