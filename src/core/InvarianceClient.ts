@@ -163,9 +163,7 @@ export class Invariance {
   static fromPrivateKey(key: string, config?: Partial<InvarianceConfig>): Invariance {
     const hex = key.startsWith('0x') ? key : `0x${key}`;
     const account = privateKeyToAccount(hex as `0x${string}`);
-    const inv = new Invariance({ ...config, signer: account });
-    inv.wallet.setPrivateKey(hex);
-    return inv;
+    return new Invariance({ ...config, signer: account });
   }
 
   /**
@@ -197,7 +195,7 @@ export class Invariance {
     this.config = merged;
     this.contracts = new ContractFactory(merged);
     this.events = new InvarianceEventEmitter();
-    this.telemetry = new Telemetry(merged.telemetry !== false);
+    this.telemetry = new Telemetry(merged.telemetry === true);
 
     this.telemetry.track('sdk.init', {
       chain: merged.chain,
@@ -1067,7 +1065,13 @@ export class Invariance {
    * Get the raw configuration object.
    */
   getConfig(): InvarianceConfig {
-    return this.config;
+    const redacted = { ...this.config };
+    if (redacted.apiKey) redacted.apiKey = '[REDACTED]';
+    if (redacted.privy) {
+      redacted.privy = { ...redacted.privy };
+      if (redacted.privy.appSecret) redacted.privy.appSecret = '[REDACTED]';
+    }
+    return redacted;
   }
 
   /**

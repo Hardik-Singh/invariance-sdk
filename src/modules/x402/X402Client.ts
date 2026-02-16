@@ -142,7 +142,9 @@ export class X402PaymentClient {
       const usdcToken = this.getUsdcToken();
 
       // Convert amount to smallest unit (USDC has 6 decimals)
-      const amountInUnits = Math.floor(parseFloat(amount) * 1_000_000).toString();
+      const [whole = '0', frac = ''] = amount.split('.');
+      const paddedFrac = (frac + '000000').slice(0, 6);
+      const amountInUnits = (BigInt(whole) * 1_000_000n + BigInt(paddedFrac)).toString();
 
       // Create payment payload via x402 (v2 PaymentRequired shape)
       const network: `${string}:${string}` = `eip155:${this.chainId}`;
@@ -170,13 +172,14 @@ export class X402PaymentClient {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       const payload = await (_client as any).createPaymentPayload(paymentRequired);
 
-      // Generate a deterministic payment ID
-      const paymentId = `x402_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      // Generate a unique payment ID using crypto-safe randomness
+      const { randomBytes } = await import('crypto');
+      const paymentId = `x402_${Date.now().toString(36)}_${randomBytes(6).toString('hex')}`;
 
       const payloadHex = stringToHex(JSON.stringify(payload));
       return {
         paymentId,
-        txHash: `0x${payloadHex.slice(2, 66)}`,
+        payloadHash: `0x${payloadHex.slice(2, 66)}`,
         amount,
         recipient,
         payer: signer.address,

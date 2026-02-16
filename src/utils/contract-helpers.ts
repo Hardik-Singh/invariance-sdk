@@ -879,11 +879,10 @@ export async function generatePlatformAttestation(
   apiBaseUrl?: string,
 ): Promise<string> {
   if (!apiKey) {
-    if (!_attestationWarningLogged) {
-      _attestationWarningLogged = true;
-      console.warn('[Invariance] No API key configured. Platform attestations will use unsigned commitments.');
-    }
-    return generatePlatformCommitment(event);
+    throw new InvarianceError(
+      ErrorCode.INVALID_INPUT,
+      'No API key configured. Platform attestation requires an API key. Set apiKey in config or INVARIANCE_API_KEY env var.',
+    );
   }
 
   const envUrl = typeof process !== 'undefined' ? process.env['INVARIANCE_API_URL'] : undefined;
@@ -903,15 +902,27 @@ export async function generatePlatformAttestation(
     });
 
     if (!response.ok) {
-      console.warn(`[Invariance] Attestation API returned ${response.status}. Falling back to unsigned commitment.`);
-      return generatePlatformCommitment(event);
+      throw new InvarianceError(
+        ErrorCode.NETWORK_ERROR,
+        `Attestation API returned ${response.status}. Cannot generate platform signature.`,
+      );
     }
 
-    const result = await response.json() as { data: { signature: string } };
-    return result.data.signature;
-  } catch {
-    console.warn('[Invariance] Attestation API unreachable. Falling back to unsigned commitment.');
-    return generatePlatformCommitment(event);
+    const result = await response.json() as Record<string, unknown>;
+    const data = result['data'] as Record<string, unknown> | undefined;
+    if (!data || typeof data['signature'] !== 'string') {
+      throw new InvarianceError(
+        ErrorCode.NETWORK_ERROR,
+        'Attestation API returned invalid response shape. Expected { data: { signature: string } }.',
+      );
+    }
+    return data['signature'] as string;
+  } catch (err) {
+    if (err instanceof InvarianceError) throw err;
+    throw new InvarianceError(
+      ErrorCode.NETWORK_ERROR,
+      `Attestation API unreachable: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
@@ -924,8 +935,15 @@ export async function generatePlatformAttestation(
 export function convertToCSV(entries: Array<{ entryId: string; action: string; timestamp: number; txHash: string }>): string {
   if (entries.length === 0) return 'entryId,action,timestamp,txHash\n';
 
+  const sanitize = (v: string): string => {
+    const first = v.charAt(0);
+    if (first === '=' || first === '+' || first === '-' || first === '@') {
+      return `'${v}`;
+    }
+    return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v;
+  };
   const headers = 'entryId,action,timestamp,txHash\n';
-  const rows = entries.map((e) => `${e.entryId},${e.action},${e.timestamp},${e.txHash}`).join('\n');
+  const rows = entries.map((e) => `${sanitize(e.entryId)},${sanitize(e.action)},${e.timestamp},${sanitize(e.txHash)}`).join('\n');
   return headers + rows;
 }
 

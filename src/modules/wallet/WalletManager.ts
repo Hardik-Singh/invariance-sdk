@@ -44,7 +44,6 @@ export class WalletManager {
   private publicClient: PublicClient | null = null;
   private address: `0x${string}` | null = null;
   private detectedProvider: WalletProvider = 'raw';
-  private _privateKey: string | null = null;
 
   constructor(
     contracts: ContractFactory,
@@ -54,45 +53,6 @@ export class WalletManager {
     this.contracts = contracts;
     this.telemetry = telemetry;
     this.config = config;
-  }
-
-  /**
-   * Store a private key for later retrieval via `exportPrivateKey()`.
-   *
-   * **WARNING: Security-sensitive.** The key is held in memory in plaintext.
-   * Avoid calling this in browser environments or long-lived processes.
-   * Prefer hardware wallets or KMS-backed signers for production use.
-   *
-   * @param key - Hex-encoded private key (with 0x prefix)
-   */
-  setPrivateKey(key: string): void {
-    this._privateKey = key;
-  }
-
-  /**
-   * Return the stored private key, if one was set.
-   *
-   * **WARNING: Security-sensitive.** This exposes the raw private key.
-   * Never log, serialize, or transmit the returned value. Callers are
-   * responsible for handling the key securely.
-   *
-   * @returns The hex-encoded private key, or null if not available
-   */
-  exportPrivateKey(): string | null {
-    if (this._privateKey) {
-      console.warn('[Invariance] exportPrivateKey() called — handle the returned key securely. Never log or transmit it.');
-    }
-    return this._privateKey;
-  }
-
-  /**
-   * Explicitly clear the stored private key from memory.
-   *
-   * Call this when the key is no longer needed to reduce the window
-   * of exposure in long-lived processes.
-   */
-  clearPrivateKey(): void {
-    this._privateKey = null;
   }
 
   /**

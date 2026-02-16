@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 /**
  * Verify an Invariance webhook HMAC-SHA256 signature.
@@ -30,17 +30,13 @@ export function verifyWebhookSignature(
   secret: string,
 ): boolean {
   const payload = typeof body === 'string' ? body : JSON.stringify(body);
-  const expected = createHmac('sha256', secret).update(payload).digest('hex');
+  const expected = createHmac('sha256', secret).update(payload).digest();
+  const signatureBuffer = Buffer.from(signature, 'hex');
 
-  // Constant-time comparison to prevent timing attacks
-  if (expected.length !== signature.length) {
+  // Use timing-safe comparison on fixed-length buffers
+  if (expected.length !== signatureBuffer.length) {
     return false;
   }
 
-  let result = 0;
-  for (let i = 0; i < expected.length; i++) {
-    result |= (expected.charCodeAt(i) ?? 0) ^ (signature.charCodeAt(i) ?? 0);
-  }
-
-  return result === 0;
+  return timingSafeEqual(expected, signatureBuffer);
 }

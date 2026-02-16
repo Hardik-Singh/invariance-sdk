@@ -303,12 +303,20 @@ export class ContractFactory {
 
   /** Get the API base URL for indexer calls */
   getApiBaseUrl(): string {
-    if (this.config.apiBaseUrl) return this.config.apiBaseUrl;
-    const envUrl = typeof process !== 'undefined' ? process.env['INVARIANCE_API_URL'] : undefined;
-    if (envUrl) return envUrl;
-    return this.config.chain === 'base'
-      ? 'https://api.useinvariance.com'
-      : 'https://api-sepolia.useinvariance.com';
+    const url = this.config.apiBaseUrl
+      ?? (typeof process !== 'undefined' ? process.env['INVARIANCE_API_URL'] : undefined)
+      ?? (this.config.chain === 'base'
+        ? 'https://api.useinvariance.com'
+        : 'https://api-sepolia.useinvariance.com');
+
+    // Enforce HTTPS except for localhost development
+    if (!url.startsWith('https://') && !url.startsWith('http://localhost') && !url.startsWith('http://127.0.0.1')) {
+      throw new InvarianceError(
+        ErrorCode.INVALID_INPUT,
+        `API base URL must use HTTPS: ${url}. Use http:// only for localhost development.`,
+      );
+    }
+    return url;
   }
 
   /** Get the wallet address from the wallet client */

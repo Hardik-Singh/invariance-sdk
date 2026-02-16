@@ -226,8 +226,8 @@ export class Verifier {
       }
 
       // 4. Validate signatures
-      const hasActorSig = entry ? entry.actorSignature.length > 2 : false;
-      const hasPlatformSig = entry ? entry.platformSignature.length > 2 : false;
+      const hasActorSig = entry ? entry.actorSignature !== '0x' : false;
+      const hasPlatformSig = entry ? entry.platformSignature !== '0x' && entry.platformSignature.length >= 132 : false;
       const signaturesValid = hasActorSig && hasPlatformSig;
 
       // 5. Build VerificationResult
@@ -622,7 +622,7 @@ export class Verifier {
               signatures: {
                 actor: actorSignature ?? '',
                 platform: platformSignature ?? '',
-                valid: (actorSignature ?? '').length > 2,
+                valid: (actorSignature ?? '') !== '0x' && (actorSignature ?? '').length >= 132,
               },
               metadataHash: metadataHash ?? '',
               raw: JSON.stringify(entry),
@@ -653,7 +653,7 @@ export class Verifier {
               signatures: {
                 actor: entry.actorSignature,
                 platform: entry.platformSignature,
-                valid: entry.actorSignature.length > 2 && entry.platformSignature.length > 2,
+                valid: entry.actorSignature !== '0x' && entry.platformSignature !== '0x' && entry.platformSignature.length >= 132,
               },
               metadataHash: entry.metadataHash,
               raw: JSON.stringify({ entryId: fromBytes32(entry.entryId), proofHash }),

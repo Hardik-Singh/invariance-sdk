@@ -1,4 +1,4 @@
-import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { scryptSync, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -24,12 +24,10 @@ interface EncryptedWallet {
 }
 
 /**
- * Derives a 32-byte key from a password using SHA-256 + salt.
+ * Derives a 32-byte key from a password using scrypt KDF.
  */
 function deriveKey(password: string, salt: Buffer): Buffer {
-  return createHash('sha256')
-    .update(Buffer.concat([Buffer.from(password), salt]))
-    .digest();
+  return scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1 });
 }
 
 /**
