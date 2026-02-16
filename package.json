@@ -22,6 +22,7 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "benchmark": "tsx scripts/benchmark.ts",
     "prepublishOnly": "pnpm build && pnpm typecheck"
   },
   "keywords": [
