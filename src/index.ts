@@ -119,6 +119,7 @@ export { ReputationEngine } from './modules/reputation/ReputationEngine.js';
 export { GasManager } from './modules/gas/GasManager.js';
 export { MarketplaceKit } from './modules/marketplace/MarketplaceKit.js';
 export { AuditTrail } from './modules/audit/AuditTrail.js';
+export { VotingManager } from './modules/voting/VotingManager.js';
 
 // ============================================================================
 // Module Types — Identity

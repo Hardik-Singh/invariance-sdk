@@ -1,8 +1,11 @@
 import { defineConfig } from 'vitest/config';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig({
   define: {
-    __SDK_VERSION__: JSON.stringify(require('./package.json').version),
+    __SDK_VERSION__: JSON.stringify(pkg.version),
   },
   server: {
     deps: {
@@ -12,7 +15,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    passWithNoTests: true,
     testTimeout: 10_000,
     reporters: process.env.CI ? ['verbose'] : ['default'],
     exclude: ['**/node_modules/**', 'node_modules', 'dist', 'examples/**'],

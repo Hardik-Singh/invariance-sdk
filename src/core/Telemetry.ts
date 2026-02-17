@@ -5,7 +5,7 @@
  * error rates, and latency distributions. All data is anonymized and contains
  * no wallet addresses, transaction hashes, or personally identifiable information.
  *
- * Telemetry is opt-out: enabled by default but can be disabled via config.
+ * Telemetry is opt-in: disabled by default, enable via `{ telemetry: true }` in config.
  */
 export class Telemetry {
   private readonly enabled: boolean;

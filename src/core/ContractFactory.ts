@@ -43,6 +43,9 @@ const ABI_MAP = {
   voting: InvarianceVotingAbi,
 } as const;
 
+/** Zero address constant for guard checks */
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 const ADDRESS_KEY_MAP: Record<ContractName, keyof ContractAddresses> = {
   identity: 'identity',
   policy: 'policy',
@@ -163,6 +166,12 @@ export class ContractFactory {
       throw new InvarianceError(
         ErrorCode.NETWORK_ERROR,
         `Contract address not configured: ${name}`,
+      );
+    }
+    if (addr === ZERO_ADDRESS) {
+      throw new InvarianceError(
+        ErrorCode.NETWORK_ERROR,
+        `Contract address for ${name} is the zero address. Contracts may not be deployed on this chain yet.`,
       );
     }
     return addr;

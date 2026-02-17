@@ -8,7 +8,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
-    passWithNoTests: false,
     testTimeout: 10_000,
     reporters: process.env.CI ? ['verbose'] : ['default'],
     coverage: {
