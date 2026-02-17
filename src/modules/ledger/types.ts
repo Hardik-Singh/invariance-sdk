@@ -13,6 +13,20 @@ export type { Unsubscribe, ExportData } from '@invariance/common';
 export type LedgerStreamCallback = (entry: import('@invariance/common').LedgerEntry) => void;
 
 // ============================================================================
+// Auto-Batch Types
+// ============================================================================
+
+/** Configuration for auto-batching compact ledger entries */
+export interface AutoBatchConfig {
+  /** Maximum entries per batch (default: 10) */
+  maxBatchSize?: number;
+  /** Maximum wait time in ms before flushing (default: 5000) */
+  maxWaitMs?: number;
+  /** Whether batching is enabled (default: true) */
+  enabled?: boolean;
+}
+
+// ============================================================================
 // Analytics Types
 // ============================================================================
 

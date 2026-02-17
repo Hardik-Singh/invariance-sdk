@@ -112,6 +112,7 @@ export { PolicyEngine } from './modules/policy/PolicyEngine.js';
 export { EscrowManager } from './modules/escrow/EscrowManager.js';
 export { EventLedger } from './modules/ledger/EventLedger.js';
 export { EventLedgerCompact } from './modules/ledger/EventLedgerCompact.js';
+export { AutoBatchedEventLedgerCompact } from './modules/ledger/AutoBatchedEventLedgerCompact.js';
 export { Verifier } from './modules/verify/Verifier.js';
 export { AtomicVerifier } from './modules/verify/AtomicVerifier.js';
 export { ReputationEngine } from './modules/reputation/ReputationEngine.js';
@@ -213,7 +214,7 @@ export type {
   LedgerEntry,
   LedgerQueryFilters,
 } from './modules/ledger/types.js';
-export type { LedgerStreamCallback } from './modules/ledger/types.js';
+export type { LedgerStreamCallback, AutoBatchConfig } from './modules/ledger/types.js';
 export type {
   AnalyticsTimeframe,
   SuccessRateResult,
