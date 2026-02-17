@@ -117,6 +117,7 @@ export { AtomicVerifier } from './modules/verify/AtomicVerifier.js';
 export { ReputationEngine } from './modules/reputation/ReputationEngine.js';
 export { GasManager } from './modules/gas/GasManager.js';
 export { MarketplaceKit } from './modules/marketplace/MarketplaceKit.js';
+export { AuditTrail } from './modules/audit/AuditTrail.js';
 
 // ============================================================================
 // Module Types — Identity
@@ -220,6 +221,21 @@ export type {
   CostSummaryResult,
   ViolationResult,
 } from './modules/ledger/types.js';
+
+// ============================================================================
+// Module Types — Audit
+// ============================================================================
+
+export type {
+  AuditConfig,
+  AuditLogInput,
+  AuditLogMode,
+  AuditLogRecord,
+  AuditQueryFilters,
+  AuditVisibility,
+  GateActionOptions,
+  GateActionResult,
+} from './modules/audit/types.js';
 
 // ============================================================================
 // Module Types — Verify
