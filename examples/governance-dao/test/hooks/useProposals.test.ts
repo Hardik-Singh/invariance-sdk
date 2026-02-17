@@ -324,7 +324,7 @@ describe('useProposals', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.error).toBe('Failed to submit vote');
+      expect(result.current.error).toBe('Vote failed');
     });
 
     // Should optimistically update the vote count

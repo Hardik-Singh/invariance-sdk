@@ -154,11 +154,8 @@ export class AuditTrail {
         timestamp: Date.now(),
       });
 
-      const output: GateActionResult<T> = {
-        result,
-        mode,
-        onchainEntryId,
-      };
+      const output: GateActionResult<T> = { result, mode };
+      if (onchainEntryId !== undefined) output.onchainEntryId = onchainEntryId;
       if (offchainAttemptId !== undefined || offchainSuccessId !== undefined) {
         output.offchain = {};
         if (offchainAttemptId !== undefined) output.offchain.attemptId = offchainAttemptId;

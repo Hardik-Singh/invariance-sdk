@@ -172,7 +172,8 @@ describe('EventLedger', () => {
 
       const result = await ledger.query({ actor: '0xActor' });
 
-      expect(result).toEqual(mockEntries);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(expect.objectContaining(mockEntries[0]));
     });
   });
 

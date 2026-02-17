@@ -122,24 +122,25 @@ describe('Verified Treasury - Full Workflow Integration', () => {
       verified: true,
       actor: { type: 'agent' as const, address: '0xAgentTest', identityId: 'id-test-123' },
       action: 'swap',
-      timestamp: Date.now(),
+      timestamp: Math.floor(Date.now() / 1000),
       txHash: '0xtx2',
-      policyCompliant: true,
-      identityVerified: true,
-      escrowVerified: null,
-      proofBundle: {
+      blockNumber: 12345,
+      explorerUrl: 'https://sepolia.basescan.org/tx/0xtx2',
+      proof: {
         proofHash: '0xproofhash',
         verifiable: true,
         signatures: { actor: '0xsig' },
-        merkleProof: [],
-        timestamp: Date.now(),
       },
-      blockNumber: 12345,
+      policyCompliance: {
+        policyId: 'pol-test-123',
+        allRulesPassed: true,
+      },
     };
 
     // Mock the SDK methods
     vi.spyOn(inv.identity, 'register').mockResolvedValue(mockIdentity);
     vi.spyOn(inv.policy, 'create').mockResolvedValue(mockPolicy);
+    vi.spyOn(inv.policy, 'attach').mockResolvedValue(undefined);
     vi.spyOn(inv.intent, 'prepare').mockResolvedValue({
       wouldSucceed: true,
       policyChecks: [
@@ -150,8 +151,17 @@ describe('Verified Treasury - Full Workflow Integration', () => {
       estimatedGas: { usdcCost: '0.25', ethCost: '0.0001', wei: '100000' },
     });
     vi.spyOn(inv.intent, 'request').mockResolvedValue(mockIntentResult);
+    vi.spyOn(inv.ledger, 'log').mockResolvedValue({
+      entryId: 'entry-1',
+      txHash: '0x1234',
+    } as any);
     vi.spyOn(inv.ledger, 'query').mockResolvedValue(mockLedgerEvents);
-    vi.spyOn(inv, 'verify').mockResolvedValue(mockVerification);
+    const verifyFn = vi.fn().mockResolvedValue(mockVerification);
+    verifyFn.url = vi.fn().mockReturnValue('https://sepolia.basescan.org/verify/intent-test-123');
+    Object.defineProperty(inv, 'verify', {
+      value: verifyFn,
+      configurable: true,
+    });
 
     // Step 2: Register agent
     const identity = await registerAgent(inv, account.address);
@@ -264,6 +274,7 @@ describe('Verified Treasury - Full Workflow Integration', () => {
         metadata: {},
       };
     });
+    vi.spyOn(inv.policy, 'attach').mockResolvedValue(undefined);
 
     vi.spyOn(inv.intent, 'prepare').mockResolvedValue({
       wouldSucceed: true,

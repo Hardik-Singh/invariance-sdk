@@ -63,6 +63,10 @@ interface ClientEvmSigner {
   }) => Promise<`0x${string}`>;
 }
 
+interface X402ClientLike {
+  createPaymentPayload: (paymentRequired: Record<string, unknown>) => Promise<unknown>;
+}
+
 /**
  * Low-level client for x402 payment operations.
  *
@@ -70,7 +74,7 @@ interface ClientEvmSigner {
  * payment creation and verification.
  */
 export class X402PaymentClient {
-  private client: unknown = null;
+  private client: X402ClientLike | null = null;
   private settings: X402Settings = {};
   private readonly chainId: number;
 
@@ -86,13 +90,12 @@ export class X402PaymentClient {
   }
 
   /** Get or create the x402Client with registered EVM scheme */
-  private async getClient(signer: ClientEvmSigner): Promise<unknown> {
+  private async getClient(signer: ClientEvmSigner): Promise<X402ClientLike> {
     if (!this.client) {
       const { x402Client, ExactEvmScheme } = await loadX402Modules();
       const network: `${string}:${string}` = `eip155:${this.chainId}`;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       this.client = new x402Client()
-        .register(network, new ExactEvmScheme(signer as never));
+        .register(network, new ExactEvmScheme(signer as never)) as X402ClientLike;
     }
     return this.client;
   }
@@ -138,7 +141,7 @@ export class X402PaymentClient {
     action: string,
   ): Promise<PaymentReceipt> {
     try {
-      const _client = await this.getClient(signer);
+      const client = await this.getClient(signer);
       const usdcToken = this.getUsdcToken();
 
       // Convert amount to smallest unit (USDC has 6 decimals)
@@ -169,17 +172,18 @@ export class X402PaymentClient {
         }],
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      const payload = await (_client as any).createPaymentPayload(paymentRequired);
+      const payload = await client.createPaymentPayload(paymentRequired);
 
       // Generate a unique payment ID using crypto-safe randomness
       const { randomBytes } = await import('crypto');
       const paymentId = `x402_${Date.now().toString(36)}_${randomBytes(6).toString('hex')}`;
 
       const payloadHex = stringToHex(JSON.stringify(payload));
+      const payloadHash = `0x${payloadHex.slice(2, 66)}`;
       return {
         paymentId,
-        payloadHash: `0x${payloadHex.slice(2, 66)}`,
+        txHash: payloadHash,
+        payloadHash,
         amount,
         recipient,
         payer: signer.address,

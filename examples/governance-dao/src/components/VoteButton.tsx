@@ -31,6 +31,8 @@ export function VoteButton({ intentId, onVote, disabled }: VoteButtonProps) {
         await onVote(intentId, false, 'Abstained');
       }
       setVoted(choice);
+    } catch {
+      // Keep controls available so the user can retry.
     } finally {
       setLoading(null);
     }

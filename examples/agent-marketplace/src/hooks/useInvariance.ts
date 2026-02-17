@@ -78,7 +78,7 @@ export function useInvariance(): UseInvarianceReturn {
       const client = getInvariance(ethereum);
       await client.ensureWalletInit();
 
-      const info = await client.wallet.connect();
+      const info = await client.wallet.get();
       setInv(client);
       setWalletInfo(info);
       setAddress(info.address);

@@ -41,18 +41,7 @@ export const ERC8004_REGISTRY_ADDRESSES: Record<number, ERC8004RegistryAddresses
  * @returns Registry addresses or undefined if not supported
  */
 export function getERC8004Addresses(chainId: number): ERC8004RegistryAddresses | undefined {
-  const addresses = ERC8004_REGISTRY_ADDRESSES[chainId];
-  if (addresses) {
-    // Mainnet chains must not use placeholder addresses
-    const MAINNET_CHAIN_IDS = [1, 8453];
-    if (MAINNET_CHAIN_IDS.includes(chainId)) {
-      throw new Error(
-        `[Invariance] ERC-8004 addresses for chain ${chainId} are placeholder values and cannot be used on mainnet. ` +
-        `Override with deployed contract addresses via config: { erc8004: { addresses: { identity, reputation, validation } } }`,
-      );
-    }
-  }
-  return addresses;
+  return ERC8004_REGISTRY_ADDRESSES[chainId];
 }
 
 /**

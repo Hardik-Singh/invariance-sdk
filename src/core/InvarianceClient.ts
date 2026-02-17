@@ -216,13 +216,6 @@ export class Invariance {
       const rpcUrl = this.contracts.getRpcUrl();
       this._wallet = new WalletManager(this.contracts, this.telemetry, this.config);
 
-      // Store private key if it was loaded from env
-      const envKey = typeof process !== 'undefined' ? process.env['INVARIANCE_PRIVATE_KEY'] : undefined;
-      if (envKey) {
-        const hex = envKey.startsWith('0x') ? envKey : `0x${envKey}`;
-        this._wallet.setPrivateKey(hex);
-      }
-
       this._walletInitPromise = this._wallet.initFromSigner(merged.signer, rpcUrl, chain).then(() => {
         if (this._wallet!.isConnected()) {
           this.contracts.setClients(this._wallet!.getPublicClient(), this._wallet!.getWalletClient());
@@ -658,8 +651,7 @@ export class Invariance {
    * ```
    */
   async hireAndFund(opts: HireAndFundOptions): Promise<import('@invariance/common').HireResult> {
-    const { fundAmount: _fundAmount, ...hireOpts } = opts;
-    const result = await this.marketplace.hire(hireOpts);
+    const result = await this.marketplace.hire(opts);
     await this.escrow.fund(result.escrowId);
     return result;
   }
@@ -897,11 +889,7 @@ export class Invariance {
     if (opts.fundAmount !== undefined) hireAndFundOpts.fundAmount = opts.fundAmount;
     const hire = await this.hireAndFund(hireAndFundOpts);
     const completion = await this.marketplace.complete(hire.hireId, {
-      review: {
-        ...opts.review,
-        target: hire.listing.identity.identityId,
-        escrowId: hire.escrowId,
-      },
+      review: opts.review,
     });
     return {
       hire,
@@ -1138,9 +1126,9 @@ export class Invariance {
    * Get the raw configuration object.
    */
   getConfig(): InvarianceConfig {
-    const redacted = { ...this.config };
+    const redacted: InvarianceConfig = { ...this.config };
+    delete (redacted as Partial<InvarianceConfig>).signer;
     if (redacted.apiKey) redacted.apiKey = '[REDACTED]';
-    if (redacted.signer) redacted.signer = '[REDACTED]' as any;
     if (redacted.privy) {
       redacted.privy = { ...redacted.privy };
       if (redacted.privy.appSecret) redacted.privy.appSecret = '[REDACTED]';

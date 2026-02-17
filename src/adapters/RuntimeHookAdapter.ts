@@ -99,7 +99,10 @@ export class RuntimeHookAdapter {
 
         const result: BeforeActionResult = { allowed: evaluation.allowed, policyId: fullCtx.policyId };
         if (!evaluation.allowed) {
-          const reason = evaluation.ruleResults.find((r) => !r.passed)?.detail;
+          const evaluationWithReason = evaluation as unknown as { reason?: unknown };
+          const fallbackReason = evaluationWithReason.reason;
+          const reason = evaluation.ruleResults?.find((r) => !r.passed)?.detail
+            ?? (typeof fallbackReason === 'string' ? fallbackReason : undefined);
           if (reason) result.reason = reason;
         }
 

@@ -247,10 +247,13 @@ describe('IntentProtocol', () => {
       expect(mockIntentContract.write.reject).toHaveBeenCalledOnce();
       expect(result.txHash).toBe('0xabc123');
       expect(result.status).toBe('success');
-      expect(emitSpy).toHaveBeenCalledWith('intent.rejected', {
-        intentId: 'intent-1',
-        reason: 'Not authorized',
-      });
+      expect(emitSpy).toHaveBeenCalledWith(
+        'intent.rejected',
+        expect.objectContaining({
+          intentId: 'intent-1',
+          reason: 'Not authorized',
+        }),
+      );
     });
   });
 

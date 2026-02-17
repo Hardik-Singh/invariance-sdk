@@ -73,7 +73,7 @@ let instance: Invariance | null = null;
  * @param signer - Optional wallet / EIP-1193 provider.  When omitted the
  *                 existing instance is returned (or a signer-less one created).
  */
-export async function getInvariance(signer?: unknown): Promise<Invariance> {
+export async function getInvariance(signer?: InvarianceConfig['signer']): Promise<Invariance> {
   if (instance && !signer) {
     return instance;
   }

@@ -4,13 +4,14 @@ import type { InvarianceConfig } from '@invariance/common';
 const hasProcessEnv = typeof process !== 'undefined' && typeof process.env !== 'undefined';
 
 // Load dotenv if available (dev/example usage only — not a runtime dependency)
-if (hasProcessEnv && typeof require !== 'undefined') {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('dotenv').config();
-  } catch {
-    // dotenv not installed — environment variables must be set externally
-  }
+if (hasProcessEnv) {
+  void import('dotenv')
+    .then((dotenv) => {
+      dotenv.config();
+    })
+    .catch(() => {
+      // dotenv not installed — environment variables must be set externally
+    });
 }
 
 const VALID_CHAINS = ['base', 'base-sepolia'] as const;

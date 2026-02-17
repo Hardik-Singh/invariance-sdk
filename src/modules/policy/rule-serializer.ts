@@ -191,7 +191,9 @@ export function deserializeRule(onChainRule: OnChainPolicyRule): PolicyRule {
     if (type === 'custom') {
       const taggedType = config['type'];
       if (typeof taggedType === 'string' && CUSTOM_ENCODED_RULE_TYPES.has(taggedType as PolicyRule['type'])) {
-        const { type: _ignored, ...rest } = config;
+        const rest = Object.fromEntries(
+          Object.entries(config).filter(([key]) => key !== 'type'),
+        ) as Record<string, unknown>;
         return { type: taggedType as PolicyRule['type'], config: rest };
       }
     }
