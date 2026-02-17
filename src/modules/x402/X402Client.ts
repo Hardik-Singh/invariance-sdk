@@ -95,7 +95,7 @@ export class X402PaymentClient {
       const { x402Client, ExactEvmScheme } = await loadX402Modules();
       const network: `${string}:${string}` = `eip155:${this.chainId}`;
       this.client = new x402Client()
-        .register(network, new ExactEvmScheme(signer as never)) as X402ClientLike;
+        .register(network, new ExactEvmScheme(signer as never)) as unknown as X402ClientLike;
     }
     return this.client;
   }
