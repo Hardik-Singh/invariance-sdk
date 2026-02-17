@@ -17,6 +17,7 @@ const ACTOR_TYPE_MAP: Record<ActorType, number> = {
   human: 1,
   device: 2,
   service: 3,
+  any: 255,
 };
 
 const REVERSE_ACTOR_TYPE_MAP: Record<number, ActorType> = {

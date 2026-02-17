@@ -1067,6 +1067,7 @@ export class Invariance {
   getConfig(): InvarianceConfig {
     const redacted = { ...this.config };
     if (redacted.apiKey) redacted.apiKey = '[REDACTED]';
+    if (redacted.signer) redacted.signer = '[REDACTED]' as any;
     if (redacted.privy) {
       redacted.privy = { ...redacted.privy };
       if (redacted.privy.appSecret) redacted.privy.appSecret = '[REDACTED]';
