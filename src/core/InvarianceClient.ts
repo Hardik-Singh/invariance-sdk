@@ -50,6 +50,7 @@ import { MarketplaceKit } from '../modules/marketplace/MarketplaceKit.js';
 import type { VerificationResult } from '../modules/verify/types.js';
 import { AuditTrail } from '../modules/audit/AuditTrail.js';
 import type { GateActionOptions, GateActionResult } from '../modules/audit/types.js';
+import { VotingManager } from '../modules/voting/VotingManager.js';
 
 declare const __SDK_VERSION__: string;
 
@@ -134,6 +135,7 @@ export class Invariance {
   private _erc8004Bridge?: InvarianceBridge;
   private _marketplace?: MarketplaceKit;
   private _auditTrail?: AuditTrail;
+  private _voting?: VotingManager;
 
   // ===========================================================================
   // Static Factory Methods
@@ -432,6 +434,7 @@ export class Invariance {
       callable.proof = verifier.proof.bind(verifier);
       callable.bulk = verifier.bulk.bind(verifier);
       callable.url = verifier.url.bind(verifier);
+      callable.verifyVote = verifier.verifyVote.bind(verifier);
 
       this._verify = callable;
     }
@@ -559,6 +562,22 @@ export class Invariance {
       );
     }
     return this._auditTrail;
+  }
+
+  /**
+   * Off-chain batch voting with merkle root settlement.
+   *
+   * Create proposals on-chain, collect EIP-712 signed votes off-chain,
+   * then settle with a single merkle root transaction.
+   * 10 methods: createProposal, castVote, buildMerkleTree, settleVotes,
+   * generateProof, verifyVote, verifyVoteOffChain, getProposal, getVotes, didPass
+   */
+  get voting(): VotingManager {
+    this._autoInit();
+    if (!this._voting) {
+      this._voting = new VotingManager(this.contracts, this.events, this.telemetry);
+    }
+    return this._voting;
   }
 
   /**

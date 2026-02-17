@@ -786,4 +786,43 @@ export class Verifier {
     const base = this.contracts.getExplorerBaseUrl();
     return `${base}/v/${intentId}`;
   }
+
+  /**
+   * Verify a vote's merkle inclusion in a settled proposal.
+   *
+   * @param proposalId - The proposal ID
+   * @param voter - Voter address
+   * @param support - Vote direction (true = for)
+   * @param weight - Vote weight
+   * @param proof - Merkle proof
+   * @returns Whether the vote is included in the settled merkle root
+   */
+  async verifyVote(
+    proposalId: string,
+    voter: string,
+    support: boolean,
+    weight: bigint,
+    proof: string[],
+  ): Promise<boolean> {
+    this.telemetry.track('verify.vote');
+
+    try {
+      const votingContract = this.contracts.getContract('voting');
+      const readFn = votingContract.read['verifyVote'];
+      if (!readFn) {
+        throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'verifyVote function not found');
+      }
+
+      return await readFn([
+        toBytes32(proposalId),
+        voter as `0x${string}`,
+        support,
+        weight,
+        proof as `0x${string}`[],
+      ]) as boolean;
+    } catch (err) {
+      if (err instanceof InvarianceError) throw err;
+      throw mapContractError(err);
+    }
+  }
 }
