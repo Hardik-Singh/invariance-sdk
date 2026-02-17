@@ -285,6 +285,12 @@ export class ReputationEngine {
         reviewId: result.reviewId,
         target: opts.target,
         rating: opts.rating,
+        reviewer: accountAddress,
+        reviewerIdentityId: fromBytes32(reviewerIdentityId),
+        targetIdentityId: fromBytes32(targetIdentityId),
+        escrowId: opts.escrowId,
+        commentHash: commentHash,
+        categories: opts.categories as Record<string, number> | undefined,
       });
 
       return result;

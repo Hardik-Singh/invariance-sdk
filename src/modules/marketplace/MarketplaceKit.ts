@@ -566,6 +566,10 @@ export class MarketplaceKit {
       this.events.emit('marketplace.hired', {
         hireId,
         listingId: opts.listingId,
+        hirer: this.contracts.getWalletAddress(),
+        provider: listing.identity.address,
+        escrowId,
+        policyId,
       });
 
       return {
@@ -603,7 +607,12 @@ export class MarketplaceKit {
       const hireContract = this.contracts.getContract('hire');
       const getHireFn = hireContract.read['getHire'];
       if (!getHireFn) throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'getHire function not found on hire contract');
-      const hire = await getHireFn([hireIdBytes]) as { escrowId: `0x${string}` };
+      const hire = await getHireFn([hireIdBytes]) as {
+        escrowId: `0x${string}`;
+        listingId: `0x${string}`;
+        hirer: `0x${string}`;
+        provider: `0x${string}`;
+      };
 
       // 2. Mark hire as completed on-chain
       const completeFn = hireContract.write['complete'];
@@ -633,6 +642,15 @@ export class MarketplaceKit {
         const reviewReceipt = await waitForReceipt(publicClient, reviewTxHash);
         reviewId = reviewReceipt.txHash;
       }
+
+      this.events.emit('marketplace.hire.completed', {
+        hireId,
+        hirer: hire.hirer,
+        provider: hire.provider,
+        listingId: fromBytes32(hire.listingId),
+        escrowId: fromBytes32(hire.escrowId),
+        completedAt: Date.now(),
+      });
 
       return {
         hireId,

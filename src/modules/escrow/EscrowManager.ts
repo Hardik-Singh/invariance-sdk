@@ -195,6 +195,8 @@ export class EscrowManager {
         address: raw.beneficiary,
       },
       amount: fromUSDCWei(raw.amount),
+      depositorIdentityId: fromBytes32(raw.depositorIdentityId),
+      beneficiaryIdentityId: fromBytes32(raw.beneficiaryIdentityId),
       state: sdkState,
       conditions,
       createdAt: Number(raw.createdAt),
@@ -300,6 +302,11 @@ export class EscrowManager {
       this.events.emit('escrow.created', {
         escrowId: escrowContract.escrowId,
         amount: escrowContract.amount,
+        depositor: escrowContract.depositor.address,
+        depositorIdentityId: fromBytes32(depositorIdentityId),
+        beneficiary: escrowContract.recipient.address,
+        beneficiaryIdentityId: fromBytes32(recipientIdentityId),
+        conditionType: opts.conditions.type,
       });
 
       // Auto-fund if requested
@@ -349,7 +356,15 @@ export class EscrowManager {
       const txHash = await fundFn([escrowIdBytes]);
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      this.events.emit('escrow.funded', { escrowId });
+      this.events.emit('escrow.funded', {
+        escrowId,
+        funder: this.contracts.getWalletAddress(),
+        depositor: raw.depositor,
+        depositorIdentityId: fromBytes32(raw.depositorIdentityId),
+        beneficiary: raw.beneficiary,
+        beneficiaryIdentityId: fromBytes32(raw.beneficiaryIdentityId),
+        amount: fromUSDCWei(raw.amount),
+      });
 
       return {
         txHash: receipt.txHash,
@@ -382,7 +397,21 @@ export class EscrowManager {
       const txHash = await releaseFn([escrowIdBytes]);
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      this.events.emit('escrow.released', { escrowId });
+      // Read escrow to get party data for enriched event
+      const getEscrowForEvent = contract.read['getEscrow'];
+      if (getEscrowForEvent) {
+        const rawEscrow = await getEscrowForEvent([escrowIdBytes]) as OnChainEscrow;
+        this.events.emit('escrow.released', {
+          escrowId,
+          depositor: rawEscrow.depositor,
+          depositorIdentityId: fromBytes32(rawEscrow.depositorIdentityId),
+          beneficiary: rawEscrow.beneficiary,
+          beneficiaryIdentityId: fromBytes32(rawEscrow.beneficiaryIdentityId),
+          amount: fromUSDCWei(rawEscrow.amount),
+        });
+      } else {
+        this.events.emit('escrow.released', { escrowId });
+      }
 
       return {
         txHash: receipt.txHash,
@@ -414,7 +443,21 @@ export class EscrowManager {
       const txHash = await refundFn([escrowIdBytes]);
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      // Event emission handled by event listeners
+      // Emit enriched refund event
+      const getEscrowForRefund = contract.read['getEscrow'];
+      if (getEscrowForRefund) {
+        try {
+          const rawEscrow = await getEscrowForRefund([escrowIdBytes]) as OnChainEscrow;
+          this.events.emit('escrow.refunded', {
+            escrowId,
+            depositor: rawEscrow.depositor,
+            depositorIdentityId: fromBytes32(rawEscrow.depositorIdentityId),
+            beneficiary: rawEscrow.beneficiary,
+            beneficiaryIdentityId: fromBytes32(rawEscrow.beneficiaryIdentityId),
+            amount: fromUSDCWei(rawEscrow.amount),
+          });
+        } catch { /* event emission is best-effort */ }
+      }
 
       return {
         txHash: receipt.txHash,
@@ -447,7 +490,27 @@ export class EscrowManager {
       const txHash = await disputeFn([escrowIdBytes, reason]);
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      this.events.emit('escrow.disputed', { escrowId, reason });
+      // Read escrow for enriched event data
+      const getEscrowForDispute = contract.read['getEscrow'];
+      if (getEscrowForDispute) {
+        try {
+          const rawEscrow = await getEscrowForDispute([escrowIdBytes]) as OnChainEscrow;
+          this.events.emit('escrow.disputed', {
+            escrowId,
+            reason,
+            disputant: this.contracts.getWalletAddress(),
+            depositor: rawEscrow.depositor,
+            depositorIdentityId: fromBytes32(rawEscrow.depositorIdentityId),
+            beneficiary: rawEscrow.beneficiary,
+            beneficiaryIdentityId: fromBytes32(rawEscrow.beneficiaryIdentityId),
+            amount: fromUSDCWei(rawEscrow.fundedAmount),
+          });
+        } catch {
+          this.events.emit('escrow.disputed', { escrowId, reason });
+        }
+      } else {
+        this.events.emit('escrow.disputed', { escrowId, reason });
+      }
 
       return {
         txHash: receipt.txHash,
@@ -487,7 +550,22 @@ export class EscrowManager {
       const txHash = await resolveFn([escrowIdBytes, 'Dispute resolved', releaseToBeneficiary]);
       const receipt = await waitForReceipt(publicClient, txHash);
 
-      // Event emission handled by event listeners
+      // Emit enriched resolve event
+      const getEscrowForResolve = contract.read['getEscrow'];
+      if (getEscrowForResolve) {
+        try {
+          const rawEscrow = await getEscrowForResolve([escrowIdBytes]) as OnChainEscrow;
+          this.events.emit('escrow.resolved', {
+            escrowId,
+            depositor: rawEscrow.depositor,
+            depositorIdentityId: fromBytes32(rawEscrow.depositorIdentityId),
+            beneficiary: rawEscrow.beneficiary,
+            beneficiaryIdentityId: fromBytes32(rawEscrow.beneficiaryIdentityId),
+            transferAmount: fromUSDCWei(rawEscrow.amount),
+            releasedToBeneficiary,
+          });
+        } catch { /* event emission is best-effort */ }
+      }
 
       return {
         txHash: receipt.txHash,

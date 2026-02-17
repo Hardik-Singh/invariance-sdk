@@ -252,6 +252,10 @@ export class IntentProtocol {
       this.events.emit('intent.requested', {
         intentId: result.intentId,
         action: opts.action,
+        requester: opts.actor.address,
+        requesterIdentityId: fromBytes32(identityId),
+        target: opts.target,
+        value: opts.amount,
       });
 
       return result;
@@ -341,6 +345,10 @@ export class IntentProtocol {
       this.events.emit('intent.requested', {
         intentId: result.intentId,
         action: opts.action,
+        requester: opts.actor.address,
+        requesterIdentityId: fromBytes32(identityId),
+        target: opts.target,
+        value: opts.amount,
         mode: 'atomic',
       });
 
@@ -511,6 +519,7 @@ export class IntentProtocol {
       this.events.emit('intent.rejected', {
         intentId,
         reason: reason ?? 'Manually rejected',
+        rejector: this.contracts.getWalletAddress(),
       });
 
       return {
