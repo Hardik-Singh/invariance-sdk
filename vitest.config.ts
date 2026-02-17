@@ -4,6 +4,11 @@ export default defineConfig({
   define: {
     __SDK_VERSION__: JSON.stringify(require('./package.json').version),
   },
+  server: {
+    deps: {
+      inline: ['@openzeppelin/merkle-tree'],
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
