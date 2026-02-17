@@ -65,4 +65,35 @@ export const InvarianceCompactLedgerAbi = [
       { name: 'timestamp', type: 'uint256', indexed: false },
     ],
   },
+  {
+    type: 'function',
+    name: 'logBatch',
+    inputs: [
+      {
+        name: 'inputs',
+        type: 'tuple[]',
+        components: [
+          { name: 'actorIdentityId', type: 'bytes32' },
+          { name: 'actorAddress', type: 'address' },
+          { name: 'action', type: 'string' },
+          { name: 'category', type: 'string' },
+          { name: 'metadataHash', type: 'bytes32' },
+          { name: 'proofHash', type: 'bytes32' },
+          { name: 'severity', type: 'uint8' },
+        ],
+      },
+      { name: 'actorSigs', type: 'bytes[]' },
+      { name: 'platformSigs', type: 'bytes[]' },
+    ],
+    outputs: [{ name: 'entryIds', type: 'bytes32[]' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    name: 'BatchLogged',
+    inputs: [
+      { name: 'count', type: 'uint256', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
 ] as const;

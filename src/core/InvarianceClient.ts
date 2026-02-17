@@ -37,6 +37,8 @@ import { PolicyEngine } from '../modules/policy/PolicyEngine.js';
 import { EscrowManager } from '../modules/escrow/EscrowManager.js';
 import { EventLedger } from '../modules/ledger/EventLedger.js';
 import { EventLedgerCompact } from '../modules/ledger/EventLedgerCompact.js';
+import { AutoBatchedEventLedgerCompact } from '../modules/ledger/AutoBatchedEventLedgerCompact.js';
+import type { AutoBatchConfig } from '../modules/ledger/types.js';
 import { Verifier } from '../modules/verify/Verifier.js';
 import { AtomicVerifier } from '../modules/verify/AtomicVerifier.js';
 import { ReputationEngine } from '../modules/reputation/ReputationEngine.js';
@@ -534,6 +536,25 @@ export class Invariance {
       this._marketplace = new MarketplaceKit(this.contracts, this.events, this.telemetry);
     }
     return this._marketplace;
+  }
+
+  /**
+   * Create an auto-batching compact ledger that buffers `log()` calls
+   * and flushes them as a single `logBatch()` transaction for ~85% gas savings.
+   *
+   * @param config - Batch configuration (maxBatchSize, maxWaitMs, enabled)
+   * @returns Auto-batching compact ledger wrapper
+   *
+   * @example
+   * ```typescript
+   * const batched = inv.ledgerCompactBatched({ maxBatchSize: 10, maxWaitMs: 5000 });
+   * await Promise.all(events.map(e => batched.log(e))); // 1 tx instead of N
+   * await batched.destroy(); // flush remaining + cleanup
+   * ```
+   */
+  ledgerCompactBatched(config?: AutoBatchConfig): AutoBatchedEventLedgerCompact {
+    this._autoInit();
+    return new AutoBatchedEventLedgerCompact(this.contracts, this.events, this.telemetry, config);
   }
 
   // ===========================================================================
