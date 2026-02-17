@@ -46,6 +46,8 @@ import { ERC8004Manager } from '../modules/erc8004/ERC8004Manager.js';
 import { InvarianceBridge } from '../modules/erc8004/InvarianceBridge.js';
 import { MarketplaceKit } from '../modules/marketplace/MarketplaceKit.js';
 import type { VerificationResult } from '../modules/verify/types.js';
+import { AuditTrail } from '../modules/audit/AuditTrail.js';
+import type { GateActionOptions, GateActionResult } from '../modules/audit/types.js';
 
 declare const __SDK_VERSION__: string;
 
@@ -129,6 +131,7 @@ export class Invariance {
   private _erc8004?: ERC8004Manager;
   private _erc8004Bridge?: InvarianceBridge;
   private _marketplace?: MarketplaceKit;
+  private _auditTrail?: AuditTrail;
 
   // ===========================================================================
   // Static Factory Methods
@@ -536,6 +539,26 @@ export class Invariance {
     return this._marketplace;
   }
 
+  /**
+   * Off-chain-first audit module with optional on-chain anchoring.
+   *
+   * Wallet account integrations remain unchanged: actor identity and signer
+   * flow still use the configured wallet/account providers.
+   */
+  get auditTrail(): AuditTrail {
+    this._autoInit();
+    if (!this._auditTrail) {
+      this._auditTrail = new AuditTrail(
+        this.contracts,
+        this.events,
+        this.telemetry,
+        this.ledger,
+        this.config.audit,
+      );
+    }
+    return this._auditTrail;
+  }
+
   // ===========================================================================
   // Convenience Methods (high-level workflows)
   // ===========================================================================
@@ -663,6 +686,16 @@ export class Invariance {
     const intent = await this.intent.request(opts.intent);
     const log = await this.ledger.log(opts.log);
     return { intent, log };
+  }
+
+  /**
+   * Gate any async action through SDK lifecycle + audit logging.
+   *
+   * Defaults to off-chain logging via infrastructure APIs. Per-action mode can
+   * be overridden with `opts.mode` (`offchain`, `onchain`, or `dual`).
+   */
+  async gateAction<T>(opts: GateActionOptions, executor: () => Promise<T>): Promise<GateActionResult<T>> {
+    return this.auditTrail.gate(opts, executor);
   }
 
   /**

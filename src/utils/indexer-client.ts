@@ -86,6 +86,64 @@ export class IndexerClient {
   }
 
   /**
+   * Perform a POST request to the indexer/API.
+   *
+   * @param path - API path
+   * @param body - JSON request body
+   * @returns Parsed JSON response body
+   */
+  async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const url = this.buildUrl(path, true);
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            ...this.buildHeaders(),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        clearTimeout(timeout);
+
+        if (response.ok) {
+          const payload = await response.json() as unknown;
+          if (payload && typeof payload === 'object' && 'data' in (payload as Record<string, unknown>)) {
+            return (payload as { data: T }).data;
+          }
+          return payload as T;
+        }
+
+        if (response.status >= 500 && attempt < MAX_RETRIES) {
+          lastError = new Error(`Indexer returned ${response.status}`);
+          continue;
+        }
+
+        throw new InvarianceError(
+          ErrorCode.NETWORK_ERROR,
+          `Indexer request failed: ${response.status} ${response.statusText}`,
+        );
+      } catch (err) {
+        if (err instanceof InvarianceError) throw err;
+        lastError = err;
+        if (attempt < MAX_RETRIES) continue;
+      }
+    }
+
+    throw new InvarianceError(
+      ErrorCode.NETWORK_ERROR,
+      `Indexer unavailable: ${lastError instanceof Error ? lastError.message : 'unknown error'}`,
+    );
+  }
+
+  /**
    * Perform a GET request and return both data and metadata (including total count).
    *
    * @param path - The API path

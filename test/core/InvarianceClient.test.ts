@@ -8,6 +8,7 @@ import { EventLedger } from '../../src/modules/ledger/EventLedger.js';
 import { ReputationEngine } from '../../src/modules/reputation/ReputationEngine.js';
 import { GasManager } from '../../src/modules/gas/GasManager.js';
 import { WalletManager } from '../../src/modules/wallet/WalletManager.js';
+import { AuditTrail } from '../../src/modules/audit/AuditTrail.js';
 import { BASE_SEPOLIA_CONFIG, BASE_CONFIG } from '../fixtures/mocks.js';
 
 describe('Invariance (Client)', () => {
@@ -128,6 +129,11 @@ describe('Invariance (Client)', () => {
       expect(inv.gas).toBeInstanceOf(GasManager);
     });
 
+    it('auditTrail getter returns AuditTrail', () => {
+      const inv = new Invariance(BASE_SEPOLIA_CONFIG);
+      expect(inv.auditTrail).toBeInstanceOf(AuditTrail);
+    });
+
   });
 
   describe('on()', () => {
@@ -175,6 +181,28 @@ describe('Invariance (Client)', () => {
     it('resolves immediately when no signer provided', async () => {
       const inv = new Invariance(BASE_SEPOLIA_CONFIG);
       await expect(inv.ensureWalletInit()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('gateAction()', () => {
+    it('delegates to auditTrail.gate', async () => {
+      const inv = new Invariance(BASE_SEPOLIA_CONFIG);
+      const gateSpy = vi.spyOn(inv.auditTrail, 'gate').mockResolvedValue({
+        result: 'ok',
+        mode: 'offchain',
+      });
+
+      const result = await inv.gateAction(
+        {
+          action: 'agent.test',
+          actor: { type: 'agent', address: '0x1111111111111111111111111111111111111111' },
+        },
+        async () => 'ok',
+      );
+
+      expect(gateSpy).toHaveBeenCalledOnce();
+      expect(result.result).toBe('ok');
+      expect(result.mode).toBe('offchain');
     });
   });
 });
