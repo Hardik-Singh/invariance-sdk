@@ -400,15 +400,23 @@ export class EscrowManager {
       // Read escrow to get party data for enriched event
       const getEscrowForEvent = contract.read['getEscrow'];
       if (getEscrowForEvent) {
-        const rawEscrow = await getEscrowForEvent([escrowIdBytes]) as OnChainEscrow;
-        this.events.emit('escrow.released', {
-          escrowId,
-          depositor: rawEscrow.depositor,
-          depositorIdentityId: fromBytes32(rawEscrow.depositorIdentityId),
-          beneficiary: rawEscrow.beneficiary,
-          beneficiaryIdentityId: fromBytes32(rawEscrow.beneficiaryIdentityId),
-          amount: fromUSDCWei(rawEscrow.amount),
-        });
+        try {
+          const rawEscrow = await getEscrowForEvent([escrowIdBytes]) as OnChainEscrow | undefined;
+          if (rawEscrow) {
+            this.events.emit('escrow.released', {
+              escrowId,
+              depositor: rawEscrow.depositor,
+              depositorIdentityId: fromBytes32(rawEscrow.depositorIdentityId),
+              beneficiary: rawEscrow.beneficiary,
+              beneficiaryIdentityId: fromBytes32(rawEscrow.beneficiaryIdentityId),
+              amount: fromUSDCWei(rawEscrow.amount),
+            });
+          } else {
+            this.events.emit('escrow.released', { escrowId });
+          }
+        } catch {
+          this.events.emit('escrow.released', { escrowId });
+        }
       } else {
         this.events.emit('escrow.released', { escrowId });
       }
@@ -562,7 +570,7 @@ export class EscrowManager {
             beneficiary: rawEscrow.beneficiary,
             beneficiaryIdentityId: fromBytes32(rawEscrow.beneficiaryIdentityId),
             transferAmount: fromUSDCWei(rawEscrow.amount),
-            releasedToBeneficiary,
+            releasedToBeneficiary: releaseToBeneficiary,
           });
         } catch { /* event emission is best-effort */ }
       }

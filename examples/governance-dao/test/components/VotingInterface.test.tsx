@@ -5,7 +5,7 @@
  * with loading states and vote confirmation.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { VoteButton } from '@/components/VoteButton';
 
@@ -209,8 +209,7 @@ describe('VoteButton (Voting Interface)', () => {
   it('should apply correct color to confirmation text', async () => {
     const user = userEvent.setup();
     mockOnVote.mockResolvedValue(undefined);
-
-    const { rerender } = render(<VoteButton intentId={intentId} onVote={mockOnVote} />);
+    render(<VoteButton intentId={intentId} onVote={mockOnVote} />);
 
     // Test "For" confirmation color
     const forButton = screen.getByRole('button', { name: /^for$/i });
@@ -221,9 +220,8 @@ describe('VoteButton (Voting Interface)', () => {
       expect(confirmation).toHaveClass('text-emerald-400');
     });
 
-    // Reset and test "Against" confirmation color
-    mockOnVote.mockClear();
-    rerender(<VoteButton intentId={`${intentId}-2`} onVote={mockOnVote} />);
+    cleanup();
+    render(<VoteButton intentId={`${intentId}-2`} onVote={mockOnVote} />);
 
     const againstButton = screen.getByRole('button', { name: /against/i });
     await user.click(againstButton);
@@ -233,9 +231,8 @@ describe('VoteButton (Voting Interface)', () => {
       expect(confirmation).toHaveClass('text-red-400');
     });
 
-    // Reset and test "Abstain" confirmation color
-    mockOnVote.mockClear();
-    rerender(<VoteButton intentId={`${intentId}-3`} onVote={mockOnVote} />);
+    cleanup();
+    render(<VoteButton intentId={`${intentId}-3`} onVote={mockOnVote} />);
 
     const abstainButton = screen.getByRole('button', { name: /abstain/i });
     await user.click(abstainButton);

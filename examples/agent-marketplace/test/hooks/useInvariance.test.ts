@@ -1,25 +1,23 @@
 /**
  * Test suite for useInvariance hook (Agent Marketplace)
- *
- * Tests wallet connection, SDK initialization, balance fetching,
- * and disconnect functionality for the Agent Marketplace example.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { useInvariance } from '@/hooks/useInvariance';
 import { Invariance } from '@invariance/sdk';
+import type { BalanceInfo, EIP1193Provider, WalletInfo } from '@invariance/sdk';
+import { useInvariance } from '@/hooks/useInvariance';
+import * as invarianceModule from '@/lib/invariance';
 
-// Mock the lib/invariance module
 vi.mock('@/lib/invariance', () => {
   let instance: Invariance | null = null;
 
   return {
-    getInvariance: vi.fn((provider?: unknown) => {
+    getInvariance: vi.fn((provider?: EIP1193Provider) => {
       if (provider) {
         instance = new Invariance({
           chain: 'base-sepolia',
           rpcUrl: 'https://sepolia.base.org',
-          signer: provider as any,
+          signer: provider,
         });
       } else if (!instance) {
         instance = new Invariance({
@@ -35,20 +33,38 @@ vi.mock('@/lib/invariance', () => {
   };
 });
 
+type EthereumRequest = (args: { method: string }) => Promise<unknown>;
+type MockEthereum = { request: ReturnType<typeof vi.fn<EthereumRequest>> };
+
+const walletInfo: WalletInfo = {
+  address: '0x1234567890123456789012345678901234567890',
+  chainId: 84532,
+  network: 'base-sepolia',
+};
+
+const balanceInfo: BalanceInfo = {
+  usdc: '1000.50',
+  eth: '0.5',
+  address: walletInfo.address,
+};
+
 describe('useInvariance (Agent Marketplace)', () => {
-  let mockEthereum: any;
+  let mockEthereum: MockEthereum;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockEthereum = {
-      request: vi.fn(),
+      request: vi.fn(async ({ method }: { method: string }) => {
+        if (method === 'eth_accounts') return [];
+        return null;
+      }),
     };
 
     Object.defineProperty(window, 'ethereum', {
       writable: true,
       configurable: true,
-      value: mockEthereum,
+      value: mockEthereum as unknown as EIP1193Provider,
     });
   });
 
@@ -66,32 +82,18 @@ describe('useInvariance (Agent Marketplace)', () => {
 
   it('should provide connect and disconnect functions', () => {
     const { result } = renderHook(() => useInvariance());
-
     expect(typeof result.current.connect).toBe('function');
     expect(typeof result.current.disconnect).toBe('function');
   });
 
   it('should connect wallet successfully', async () => {
-    const mockWalletInfo = {
-      address: '0x1234567890123456789012345678901234567890',
-      chainId: 84532,
-      network: 'base-sepolia',
-    };
-
-    const mockBalance = {
-      usdc: '1000.50',
-      eth: '0.5',
-      address: '0x1234567890123456789012345678901234567890',
-    };
-
-    mockEthereum.request.mockResolvedValue(['0x1234567890123456789012345678901234567890']);
-
     const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
 
-    // Mock SDK wallet methods
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockResolvedValue(undefined);
-    vi.spyOn(result.current.inv.wallet, 'connect').mockResolvedValue(mockWalletInfo as any);
-    vi.spyOn(result.current.inv.wallet, 'balance').mockResolvedValue(mockBalance as any);
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit').mockResolvedValue(undefined);
+    vi.spyOn(client.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(client.wallet, 'balance').mockResolvedValue(balanceInfo);
 
     await act(async () => {
       await result.current.connect();
@@ -101,31 +103,34 @@ describe('useInvariance (Agent Marketplace)', () => {
       expect(result.current.isConnected).toBe(true);
     });
 
-    expect(result.current.address).toBe('0x1234567890123456789012345678901234567890');
-    expect(result.current.balance).toEqual(mockBalance);
-    expect(result.current.walletInfo).toEqual(mockWalletInfo);
+    expect(result.current.address).toBe(walletInfo.address);
+    expect(result.current.balance).toEqual(balanceInfo);
+    expect(result.current.walletInfo).toEqual(walletInfo);
     expect(result.current.error).toBeNull();
   });
 
   it('should set connecting state during connection', async () => {
-    let resolveRequest: (value: any) => void;
-    const requestPromise = new Promise((resolve) => {
-      resolveRequest = resolve;
+    const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
+    let resolveInit: (() => void) | null = null;
+    const initPromise = new Promise<void>((resolve) => {
+      resolveInit = resolve;
     });
 
-    mockEthereum.request.mockReturnValue(requestPromise);
-
-    const { result } = renderHook(() => useInvariance());
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit').mockReturnValue(initPromise);
+    vi.spyOn(client.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(client.wallet, 'balance').mockResolvedValue(balanceInfo);
 
     act(() => {
-      result.current.connect();
+      void result.current.connect();
     });
 
     await waitFor(() => {
       expect(result.current.connecting).toBe(true);
     });
 
-    resolveRequest!(['0x1234567890123456789012345678901234567890']);
+    resolveInit?.();
 
     await waitFor(() => {
       expect(result.current.connecting).toBe(false);
@@ -153,25 +158,18 @@ describe('useInvariance (Agent Marketplace)', () => {
   });
 
   it('should fetch balance after connection', async () => {
-    const mockWalletInfo = {
-      address: '0x1234567890123456789012345678901234567890',
-      chainId: 84532,
-      network: 'base-sepolia',
-    };
-
-    const mockBalance = {
+    const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
+    const mockBalance: BalanceInfo = {
       usdc: '2500.00',
       eth: '1.25',
-      address: '0x1234567890123456789012345678901234567890',
+      address: walletInfo.address,
     };
 
-    mockEthereum.request.mockResolvedValue(['0x1234567890123456789012345678901234567890']);
-
-    const { result } = renderHook(() => useInvariance());
-
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockResolvedValue(undefined);
-    vi.spyOn(result.current.inv.wallet, 'connect').mockResolvedValue(mockWalletInfo as any);
-    vi.spyOn(result.current.inv.wallet, 'balance').mockResolvedValue(mockBalance as any);
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit').mockResolvedValue(undefined);
+    vi.spyOn(client.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(client.wallet, 'balance').mockResolvedValue(mockBalance);
 
     await act(async () => {
       await result.current.connect();
@@ -180,25 +178,16 @@ describe('useInvariance (Agent Marketplace)', () => {
     await waitFor(() => {
       expect(result.current.balance).toEqual(mockBalance);
     });
-
-    expect(result.current.balance?.usdc).toBe('2500.00');
-    expect(result.current.balance?.eth).toBe('1.25');
   });
 
   it('should handle balance fetch errors gracefully', async () => {
-    const mockWalletInfo = {
-      address: '0x1234567890123456789012345678901234567890',
-      chainId: 84532,
-      network: 'base-sepolia',
-    };
-
-    mockEthereum.request.mockResolvedValue(['0x1234567890123456789012345678901234567890']);
-
     const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
 
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockResolvedValue(undefined);
-    vi.spyOn(result.current.inv.wallet, 'connect').mockResolvedValue(mockWalletInfo as any);
-    vi.spyOn(result.current.inv.wallet, 'balance').mockRejectedValue(new Error('Balance fetch failed'));
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit').mockResolvedValue(undefined);
+    vi.spyOn(client.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(client.wallet, 'balance').mockRejectedValue(new Error('Balance fetch failed'));
 
     await act(async () => {
       await result.current.connect();
@@ -208,34 +197,22 @@ describe('useInvariance (Agent Marketplace)', () => {
       expect(result.current.isConnected).toBe(true);
     });
 
-    // Should set default balance on error
     expect(result.current.balance).toEqual({
       usdc: '0.00',
       eth: '0.00',
-      address: '0x1234567890123456789012345678901234567890',
+      address: walletInfo.address,
     });
   });
 
   it('should disconnect wallet', async () => {
-    const mockWalletInfo = {
-      address: '0x1234567890123456789012345678901234567890',
-      chainId: 84532,
-      network: 'base-sepolia',
-    };
-
-    mockEthereum.request.mockResolvedValue(['0x1234567890123456789012345678901234567890']);
-
     const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
 
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockResolvedValue(undefined);
-    vi.spyOn(result.current.inv.wallet, 'connect').mockResolvedValue(mockWalletInfo as any);
-    vi.spyOn(result.current.inv.wallet, 'balance').mockResolvedValue({
-      usdc: '100',
-      eth: '0.1',
-      address: mockWalletInfo.address,
-    } as any);
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit').mockResolvedValue(undefined);
+    vi.spyOn(client.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(client.wallet, 'balance').mockResolvedValue(balanceInfo);
 
-    // Connect first
     await act(async () => {
       await result.current.connect();
     });
@@ -244,7 +221,6 @@ describe('useInvariance (Agent Marketplace)', () => {
       expect(result.current.isConnected).toBe(true);
     });
 
-    // Disconnect
     act(() => {
       result.current.disconnect();
     });
@@ -261,19 +237,20 @@ describe('useInvariance (Agent Marketplace)', () => {
 
   it('should reset SDK instance on disconnect', () => {
     const { result } = renderHook(() => useInvariance());
-    const { resetInvariance } = require('@/lib/invariance');
 
     act(() => {
       result.current.disconnect();
     });
 
-    expect(resetInvariance).toHaveBeenCalled();
+    expect(invarianceModule.resetInvariance).toHaveBeenCalled();
   });
 
   it('should handle connection errors', async () => {
-    mockEthereum.request.mockRejectedValue(new Error('User denied connection'));
-
     const { result } = renderHook(() => useInvariance());
+
+    vi.mocked(invarianceModule.getInvariance).mockImplementationOnce(() => {
+      throw new Error('User denied connection');
+    });
 
     await act(async () => {
       await result.current.connect();
@@ -288,46 +265,32 @@ describe('useInvariance (Agent Marketplace)', () => {
   });
 
   it('should attempt auto-connect on mount if wallet was previously connected', async () => {
-    mockEthereum.request.mockImplementation(async ({ method }: any) => {
-      if (method === 'eth_accounts') {
-        return ['0x1234567890123456789012345678901234567890'];
-      }
+    mockEthereum.request.mockImplementation(async ({ method }: { method: string }) => {
+      if (method === 'eth_accounts') return [walletInfo.address];
       return null;
     });
 
     const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
 
-    const mockWalletInfo = {
-      address: '0x1234567890123456789012345678901234567890',
-      chainId: 84532,
-      network: 'base-sepolia',
-    };
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit').mockResolvedValue(undefined);
+    vi.spyOn(client.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(client.wallet, 'balance').mockResolvedValue(balanceInfo);
 
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockResolvedValue(undefined);
-    vi.spyOn(result.current.inv.wallet, 'connect').mockResolvedValue(mockWalletInfo as any);
-    vi.spyOn(result.current.inv.wallet, 'balance').mockResolvedValue({
-      usdc: '100',
-      eth: '0.1',
-      address: mockWalletInfo.address,
-    } as any);
-
-    // Wait for auto-connect effect
     await waitFor(() => {
       expect(mockEthereum.request).toHaveBeenCalledWith({ method: 'eth_accounts' });
     });
   });
 
   it('should handle auto-connect errors silently', async () => {
-    mockEthereum.request.mockImplementation(async ({ method }: any) => {
-      if (method === 'eth_accounts') {
-        throw new Error('Failed to get accounts');
-      }
+    mockEthereum.request.mockImplementation(async ({ method }: { method: string }) => {
+      if (method === 'eth_accounts') throw new Error('Failed to get accounts');
       return null;
     });
 
     const { result } = renderHook(() => useInvariance());
 
-    // Should not throw error or crash
     await waitFor(() => {
       expect(result.current.isConnected).toBe(false);
     });
@@ -337,19 +300,21 @@ describe('useInvariance (Agent Marketplace)', () => {
 
   it('should provide read-only SDK instance before connection', () => {
     const { result } = renderHook(() => useInvariance());
-
     expect(result.current.inv).toBeInstanceOf(Invariance);
     expect(result.current.isConnected).toBe(false);
   });
 
   it('should clear error on successful connection after previous error', async () => {
-    mockEthereum.request
-      .mockRejectedValueOnce(new Error('First attempt failed'))
-      .mockResolvedValue(['0x1234567890123456789012345678901234567890']);
-
     const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
 
-    // First attempt
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit')
+      .mockRejectedValueOnce(new Error('First attempt failed'))
+      .mockResolvedValueOnce(undefined);
+    vi.spyOn(client.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(client.wallet, 'balance').mockResolvedValue(balanceInfo);
+
     await act(async () => {
       await result.current.connect();
     });
@@ -358,20 +323,6 @@ describe('useInvariance (Agent Marketplace)', () => {
       expect(result.current.error).toBe('First attempt failed');
     });
 
-    // Mock successful wallet methods
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockResolvedValue(undefined);
-    vi.spyOn(result.current.inv.wallet, 'connect').mockResolvedValue({
-      address: '0x1234567890123456789012345678901234567890',
-      chainId: 84532,
-      network: 'base-sepolia',
-    } as any);
-    vi.spyOn(result.current.inv.wallet, 'balance').mockResolvedValue({
-      usdc: '100',
-      eth: '0.1',
-      address: '0x1234567890123456789012345678901234567890',
-    } as any);
-
-    // Second attempt
     await act(async () => {
       await result.current.connect();
     });
@@ -384,24 +335,25 @@ describe('useInvariance (Agent Marketplace)', () => {
   });
 
   it('should update SDK instance after connection', async () => {
-    const mockWalletInfo = {
-      address: '0x1234567890123456789012345678901234567890',
-      chainId: 84532,
-      network: 'base-sepolia',
-    };
+    const readonlyClient = new Invariance({
+      chain: 'base-sepolia',
+      rpcUrl: 'https://sepolia.base.org',
+    });
+    const connectedClient = new Invariance({
+      chain: 'base-sepolia',
+      rpcUrl: 'https://sepolia.base.org',
+      signer: mockEthereum as unknown as EIP1193Provider,
+    });
 
-    mockEthereum.request.mockResolvedValue(['0x1234567890123456789012345678901234567890']);
+    vi.mocked(invarianceModule.getInvariance).mockImplementation((provider?: EIP1193Provider) => {
+      return provider ? connectedClient : readonlyClient;
+    });
 
     const { result } = renderHook(() => useInvariance());
-    const initialInv = result.current.inv;
 
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockResolvedValue(undefined);
-    vi.spyOn(result.current.inv.wallet, 'connect').mockResolvedValue(mockWalletInfo as any);
-    vi.spyOn(result.current.inv.wallet, 'balance').mockResolvedValue({
-      usdc: '100',
-      eth: '0.1',
-      address: mockWalletInfo.address,
-    } as any);
+    vi.spyOn(connectedClient, 'ensureWalletInit').mockResolvedValue(undefined);
+    vi.spyOn(connectedClient.wallet, 'get').mockResolvedValue(walletInfo);
+    vi.spyOn(connectedClient.wallet, 'balance').mockResolvedValue(balanceInfo);
 
     await act(async () => {
       await result.current.connect();
@@ -411,16 +363,16 @@ describe('useInvariance (Agent Marketplace)', () => {
       expect(result.current.isConnected).toBe(true);
     });
 
-    expect(result.current.inv).toBeInstanceOf(Invariance);
+    expect(result.current.inv).toBe(connectedClient);
   });
 
   it('should handle wallet initialization errors', async () => {
-    mockEthereum.request.mockResolvedValue(['0x1234567890123456789012345678901234567890']);
-
     const { result } = renderHook(() => useInvariance());
+    const client = result.current.inv;
 
-    vi.spyOn(result.current.inv, 'ensureWalletInit').mockRejectedValue(
-      new Error('Wallet initialization failed')
+    vi.mocked(invarianceModule.getInvariance).mockReturnValue(client);
+    vi.spyOn(client, 'ensureWalletInit').mockRejectedValue(
+      new Error('Wallet initialization failed'),
     );
 
     await act(async () => {

@@ -94,7 +94,9 @@ export class ReputationBridge {
    */
   async getAggregatedScore(identityId: string): Promise<AggregatedReputation> {
     const onChain = await this.client.reputation.get(identityId);
-    const invarianceScore = onChain.scores.overall;
+    const invarianceScore = (onChain as { scores?: { overall?: number }; overall?: number }).scores?.overall
+      ?? (onChain as { overall?: number }).overall
+      ?? 0;
 
     const externalScores = this.getExternalScores(identityId);
     const externalAverage = externalScores.length > 0

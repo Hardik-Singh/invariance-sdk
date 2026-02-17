@@ -175,7 +175,7 @@ export class IntentProtocol {
           opts.metadata = {
             ...opts.metadata,
             paymentReceiptId: receipt.paymentId,
-            paymentTxHash: receipt.txHash,
+            paymentPayloadHash: receipt.payloadHash,
           };
         }
       }
@@ -249,14 +249,22 @@ export class IntentProtocol {
         logId: fromBytes32(intentId),
       };
 
-      this.events.emit('intent.requested', {
+      const requestedPayload: {
+        intentId: string;
+        action: string;
+        requester: string;
+        requesterIdentityId: string;
+        target?: string;
+        value?: string;
+      } = {
         intentId: result.intentId,
         action: opts.action,
         requester: opts.actor.address,
         requesterIdentityId: fromBytes32(identityId),
-        target: opts.target,
-        value: opts.amount,
-      });
+      };
+      if (opts.target !== undefined) requestedPayload.target = opts.target;
+      if (opts.amount !== undefined) requestedPayload.value = opts.amount;
+      this.events.emit('intent.requested', requestedPayload);
 
       return result;
     } catch (err) {
@@ -342,15 +350,24 @@ export class IntentProtocol {
         logId: fromBytes32(entryId),
       };
 
-      this.events.emit('intent.requested', {
+      const atomicRequestedPayload: {
+        intentId: string;
+        action: string;
+        requester: string;
+        requesterIdentityId: string;
+        target?: string;
+        value?: string;
+        mode: string;
+      } = {
         intentId: result.intentId,
         action: opts.action,
         requester: opts.actor.address,
         requesterIdentityId: fromBytes32(identityId),
-        target: opts.target,
-        value: opts.amount,
         mode: 'atomic',
-      });
+      };
+      if (opts.target !== undefined) atomicRequestedPayload.target = opts.target;
+      if (opts.amount !== undefined) atomicRequestedPayload.value = opts.amount;
+      this.events.emit('intent.requested', atomicRequestedPayload);
 
       return result;
     } catch (err) {

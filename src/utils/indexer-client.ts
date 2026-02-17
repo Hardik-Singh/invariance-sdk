@@ -234,6 +234,7 @@ export class IndexerClient {
     const headers: Record<string, string> = { 'Accept': 'application/json' };
     if (this.apiKey) {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
+      headers['x-api-key'] = this.apiKey;
     }
     return headers;
   }

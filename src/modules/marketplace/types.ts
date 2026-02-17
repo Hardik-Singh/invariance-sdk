@@ -39,7 +39,7 @@ export interface FeaturedOptions {
 
 /** Options for completing a hire */
 export interface CompleteHireOptions {
-  review?: import('@invariance/common').SubmitReviewOptions;
+  review?: Omit<import('@invariance/common').SubmitReviewOptions, 'target' | 'escrowId'>;
   deliverables?: string[];
   notes?: string;
 }

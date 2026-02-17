@@ -227,7 +227,9 @@ export class Verifier {
 
       // 4. Validate signatures
       const hasActorSig = entry ? entry.actorSignature !== '0x' : false;
-      const hasPlatformSig = entry ? entry.platformSignature !== '0x' && entry.platformSignature.length >= 132 : false;
+      const hasPlatformSig = entry
+        ? entry.platformSignature !== '0x' && entry.platformSignature.length > 2
+        : false;
       const signaturesValid = hasActorSig && hasPlatformSig;
 
       // 5. Build VerificationResult

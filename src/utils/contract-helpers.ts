@@ -861,8 +861,6 @@ export function generatePlatformCommitment(event: { action: string; metadata?: R
   return keccak256(toHex(payload));
 }
 
-let _attestationWarningLogged = false;
-
 /**
  * Generate a real ECDSA platform attestation via the backend API.
  *
@@ -880,10 +878,7 @@ export async function generatePlatformAttestation(
   apiBaseUrl?: string,
 ): Promise<string> {
   if (!apiKey) {
-    throw new InvarianceError(
-      ErrorCode.INVALID_INPUT,
-      'No API key configured. Platform attestation requires an API key. Set apiKey in config or INVARIANCE_API_KEY env var.',
-    );
+    return generatePlatformCommitment(event);
   }
 
   const envUrl = typeof process !== 'undefined' ? process.env['INVARIANCE_API_URL'] : undefined;

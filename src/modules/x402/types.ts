@@ -22,6 +22,8 @@ export interface PayForActionOptions {
 export interface PaymentReceipt {
   /** Unique payment identifier */
   paymentId: string;
+  /** Backwards-compatible alias for payloadHash (not an on-chain tx hash) */
+  txHash?: string;
   /** Hash of the payment payload (not an on-chain tx hash) */
   payloadHash: string;
   /** Payment amount in USDC */

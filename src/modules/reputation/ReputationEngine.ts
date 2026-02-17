@@ -281,7 +281,17 @@ export class ReputationEngine {
         explorerUrl: `${explorerBase}/tx/${receipt.txHash}`,
       };
 
-      this.events.emit('reputation.reviewed', {
+      const reviewedPayload: {
+        reviewId: string;
+        target: string;
+        rating: 1 | 2 | 3 | 4 | 5;
+        reviewer: `0x${string}`;
+        reviewerIdentityId: string;
+        targetIdentityId: string;
+        escrowId: string;
+        commentHash: `0x${string}`;
+        categories?: Record<string, number>;
+      } = {
         reviewId: result.reviewId,
         target: opts.target,
         rating: opts.rating,
@@ -290,8 +300,9 @@ export class ReputationEngine {
         targetIdentityId: fromBytes32(targetIdentityId),
         escrowId: opts.escrowId,
         commentHash: commentHash,
-        categories: opts.categories as Record<string, number> | undefined,
-      });
+      };
+      if (opts.categories !== undefined) reviewedPayload.categories = opts.categories as Record<string, number>;
+      this.events.emit('reputation.reviewed', reviewedPayload);
 
       return result;
     } catch (err) {

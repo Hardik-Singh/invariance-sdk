@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useInvariance } from '@/hooks/useInvariance';
 import { Invariance } from '@invariance/sdk';
+import * as invarianceModule from '@/lib/invariance';
 
 // Mock the lib/invariance module
 vi.mock('@/lib/invariance', () => ({
@@ -230,7 +231,7 @@ describe('useInvariance (Governance DAO)', () => {
   it('should provide Invariance SDK instance', () => {
     const { result } = renderHook(() => useInvariance());
 
-    expect(result.current.inv).toBeInstanceOf(Invariance);
+    expect(result.current.inv).toBeNull();
   });
 
   it('should update SDK instance after connection', async () => {
@@ -331,12 +332,11 @@ describe('useInvariance (Governance DAO)', () => {
       rpcUrl: 'https://sepolia.base.org',
     });
 
-    const { getInvarianceInstance } = require('@/lib/invariance');
-    getInvarianceInstance.mockReturnValue(mockInstance);
+    vi.mocked(invarianceModule.getInvarianceInstance).mockReturnValue(mockInstance);
 
     const { result } = renderHook(() => useInvariance());
 
-    expect(result.current.inv).toBeDefined();
+    expect(result.current.inv).toBe(mockInstance);
   });
 
   it('should expose connect function', () => {

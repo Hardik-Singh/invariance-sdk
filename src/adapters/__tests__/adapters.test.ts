@@ -7,6 +7,7 @@ import type { Identity, SpecPolicy, LedgerEntry, EscrowContract } from '@invaria
 import type { ReputationScore, Badge } from '../../modules/reputation/types.js';
 import type { Listing, HireResult } from '../../modules/marketplace/types.js';
 import type { EvaluationResult } from '../../modules/policy/types.js';
+import type { PublishAgentOptions } from '../MarketplacePlugin.js';
 
 // ============================================================================
 // Shared mock data
@@ -286,14 +287,15 @@ describe('MarketplacePlugin', () => {
     const { MarketplacePlugin } = await import('../MarketplacePlugin.js');
     const plugin = new MarketplacePlugin(client);
 
-    const result = await plugin.publishAgent({
+    const publishOpts: PublishAgentOptions = {
       identity: 'id-123',
       name: 'TestBot',
       description: 'A test bot',
-      category: 'analytics' as any,
+      category: 'data-analysis',
       pricing: { model: 'per-task', amount: '50' },
       generateBadge: true,
-    } as any);
+    };
+    const result = await plugin.publishAgent(publishOpts);
 
     expect(result.listing).toBeDefined();
     expect(result.badge).toBeDefined();

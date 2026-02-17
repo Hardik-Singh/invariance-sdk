@@ -81,8 +81,7 @@ describe('AgentCard', () => {
 
   it('should display star rating with count', () => {
     const { container } = render(<AgentCard listing={baseListing} />);
-    expect(screen.getByText('4.5')).toBeInTheDocument();
-    expect(screen.getByText('(28)')).toBeInTheDocument();
+    expect(screen.getByText(/4\.5\s*\(28\)/)).toBeInTheDocument();
 
     // Check for star SVGs
     const stars = container.querySelectorAll('svg[viewBox="0 0 20 20"]');
@@ -104,7 +103,7 @@ describe('AgentCard', () => {
     };
 
     const { container } = render(<AgentCard listing={zeroRatingListing} />);
-    expect(screen.getByText('0.0')).toBeInTheDocument();
+    expect(screen.getByText(/0\.0\s*\(0\)/)).toBeInTheDocument();
 
     const emptyStars = container.querySelectorAll('svg.text-gray-200');
     expect(emptyStars.length).toBe(5);
@@ -261,7 +260,7 @@ describe('AgentCard', () => {
     expect(screen.getByText(/Automated trading bot/)).toBeInTheDocument();
 
     // Rating section
-    expect(screen.getByText('4.5')).toBeInTheDocument();
+    expect(screen.getByText(/4\.5\s*\(28\)/)).toBeInTheDocument();
 
     // Capabilities
     expect(screen.getByText('swap')).toBeInTheDocument();
@@ -300,7 +299,7 @@ describe('AgentCard', () => {
   it('should display review count correctly', () => {
     render(<AgentCard listing={baseListing} />);
     // Check that the review count is displayed in parentheses
-    const ratingText = screen.getByText('(28)');
+    const ratingText = screen.getByText(/4\.5\s*\(28\)/);
     expect(ratingText).toBeInTheDocument();
   });
 
@@ -311,7 +310,6 @@ describe('AgentCard', () => {
     };
 
     render(<AgentCard listing={singleReview} />);
-    expect(screen.getByText('5.0')).toBeInTheDocument();
-    expect(screen.getByText('(1)')).toBeInTheDocument();
+    expect(screen.getByText(/5\.0\s*\(1\)/)).toBeInTheDocument();
   });
 });

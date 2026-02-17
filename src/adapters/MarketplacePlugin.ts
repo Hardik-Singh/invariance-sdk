@@ -60,7 +60,7 @@ export class MarketplacePlugin {
    * Publish an agent listing with optional reputation badge.
    */
   async publishAgent(opts: PublishAgentOptions): Promise<PublishResult> {
-    const { generateBadge, badgeThreshold: _badgeThreshold, ...listingOpts } = opts;
+    const { generateBadge, ...listingOpts } = opts;
     const listing = await this.client.marketplace.register(listingOpts);
 
     let badge: Badge | undefined;

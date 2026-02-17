@@ -249,7 +249,6 @@ export class WalletManager {
     // Lazy-import Privy SDK (optional dependency)
     let PrivyClient: unknown; // Dynamic import of optional peer dep; type unknown at compile time
     try {
-      // @ts-ignore - Optional peer dependency, may not be installed
       const privyModule = await import('@privy-io/server-auth');
       PrivyClient = (privyModule as Record<string, unknown>)['PrivyClient'];
     } catch {

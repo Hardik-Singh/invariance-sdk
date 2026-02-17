@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { privateKeyToAccount } from 'viem/accounts';
 import { generatePrivateKey } from 'viem/accounts';
-import type { Account } from 'viem';
+
+type WalletAccount = ReturnType<typeof privateKeyToAccount>;
 
 /** Path to the encrypted wallet file */
 const WALLET_DIR = join(
@@ -82,7 +83,7 @@ export class WalletStore {
    * Load existing wallet or create a new one.
    * @returns viem Account ready for SDK use
    */
-  loadOrCreate(): { account: Account; isNew: boolean } {
+  loadOrCreate(): { account: WalletAccount; isNew: boolean } {
     if (existsSync(WALLET_PATH)) {
       const raw = readFileSync(WALLET_PATH, 'utf8');
       const wallet: EncryptedWallet = JSON.parse(raw);

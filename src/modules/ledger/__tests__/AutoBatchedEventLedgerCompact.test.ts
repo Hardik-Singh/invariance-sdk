@@ -16,8 +16,6 @@ function makeEvent(action: string): LedgerEventInput {
 }
 
 const MOCK_IDENTITY_ID = '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`;
-const MOCK_METADATA_HASH = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' as `0x${string}`;
-const MOCK_SIG = '0xdeadbeef' as `0x${string}`;
 const MOCK_TX_HASH = '0xtx123';
 
 function createMocks() {

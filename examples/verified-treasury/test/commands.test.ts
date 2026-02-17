@@ -5,7 +5,7 @@
  * interact with the SDK and handle errors gracefully.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Invariance } from '@invariance/sdk';
+import { Invariance, InvarianceError, ErrorCode } from '@invariance/sdk';
 import { privateKeyToAccount } from 'viem/accounts';
 import { initSDK } from '../src/steps/01-init.js';
 import { registerAgent } from '../src/steps/02-register.js';
@@ -123,6 +123,7 @@ describe('Verified Treasury - Step 3: Create Policy', () => {
           rules: expect.any(Array),
           status: 'active',
         }),
+        attach: vi.fn().mockResolvedValue(undefined),
       },
     } as unknown as Invariance;
 
@@ -135,6 +136,7 @@ describe('Verified Treasury - Step 3: Create Policy', () => {
 
     expect(policy).toBeDefined();
     expect(mockInv.policy.create).toHaveBeenCalled();
+    expect(mockInv.policy.attach).toHaveBeenCalledWith('pol-123', 'id-123');
   });
 });
 
@@ -222,7 +224,11 @@ describe('Verified Treasury - Step 5: Blocked Action', () => {
   it('should attempt an action not in whitelist and handle rejection', async () => {
     const mockInv = {
       intent: {
-        request: vi.fn().mockRejectedValue(new Error('Action not in whitelist')),
+        request: vi
+          .fn()
+          .mockRejectedValue(
+            new InvarianceError(ErrorCode.ACTION_NOT_ALLOWED, 'Action not in whitelist')
+          ),
       },
     } as unknown as Invariance;
 
@@ -236,7 +242,11 @@ describe('Verified Treasury - Step 6: Over Limit', () => {
   it('should attempt an action exceeding spending cap and handle rejection', async () => {
     const mockInv = {
       intent: {
-        request: vi.fn().mockRejectedValue(new Error('Spending cap exceeded')),
+        request: vi
+          .fn()
+          .mockRejectedValue(
+            new InvarianceError(ErrorCode.BUDGET_EXCEEDED, 'Spending cap exceeded')
+          ),
       },
     } as unknown as Invariance;
 
@@ -250,17 +260,27 @@ describe('Verified Treasury - Step 7: Audit Trail', () => {
   it('should query the immutable audit trail', async () => {
     const mockInv = {
       ledger: {
+        log: vi.fn().mockResolvedValue({
+          entryId: 'entry-1',
+          txHash: '0xaaaabbbbccccddddeeeeffff0000111122223333444455556666777788889999',
+        }),
         query: vi.fn().mockResolvedValue([
           {
             eventId: 'evt-1',
             action: 'swap',
+            category: 'intent',
             actor: { type: 'agent', address: '0xAgent' },
+            blockNumber: 12345,
+            txHash: '0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff',
             timestamp: Date.now(),
           },
           {
             eventId: 'evt-2',
             action: 'register-identity',
+            category: 'identity',
             actor: { type: 'human', address: '0xOwner' },
+            blockNumber: 12340,
+            txHash: '0xffffeeeeddddccccbbbbaaaa0000999988887777666655554444333322221111',
             timestamp: Date.now() - 1000,
           },
         ]),
@@ -270,12 +290,17 @@ describe('Verified Treasury - Step 7: Audit Trail', () => {
     const mockIdentity = { identityId: 'id-123', address: '0xAgent' } as any;
 
     await expect(queryAuditTrail(mockInv, mockIdentity)).resolves.not.toThrow();
+    expect(mockInv.ledger.log).toHaveBeenCalled();
     expect(mockInv.ledger.query).toHaveBeenCalled();
   });
 
   it('should handle empty audit trail', async () => {
     const mockInv = {
       ledger: {
+        log: vi.fn().mockResolvedValue({
+          entryId: 'entry-1',
+          txHash: '0xaaaabbbbccccddddeeeeffff0000111122223333444455556666777788889999',
+        }),
         query: vi.fn().mockResolvedValue([]),
       },
     } as unknown as Invariance;
@@ -288,17 +313,30 @@ describe('Verified Treasury - Step 7: Audit Trail', () => {
 
 describe('Verified Treasury - Step 8: Verify Transaction', () => {
   it('should verify a previous transaction', async () => {
+    const verifyFn = vi.fn().mockResolvedValue({
+      verified: true,
+      action: 'swap',
+      actor: { type: 'agent', address: '0xAgent', identityId: 'id-123' },
+      timestamp: Math.floor(Date.now() / 1000),
+      txHash: '0xtx',
+      blockNumber: 12345,
+      explorerUrl: 'https://explorer.example.com/tx/0xtx',
+      proof: {
+        proofHash: '0xproof',
+        verifiable: true,
+        signatures: {
+          actor: '0xsig1',
+        },
+      },
+      policyCompliance: {
+        policyId: 'pol-123',
+        allRulesPassed: true,
+      },
+    });
+    verifyFn.url = vi.fn().mockReturnValue('https://explorer.example.com/verify/intent-123');
+
     const mockInv = {
-      verify: vi.fn().mockResolvedValue({
-        verified: true,
-        actor: { type: 'agent', address: '0xAgent', identityId: 'id-123' },
-        action: 'swap',
-        timestamp: Date.now(),
-        txHash: '0xtx',
-        policyCompliant: true,
-        identityVerified: true,
-        escrowVerified: null,
-      }),
+      verify: verifyFn,
     } as unknown as Invariance;
 
     const mockIntentResult = {
@@ -308,18 +346,37 @@ describe('Verified Treasury - Step 8: Verify Transaction', () => {
 
     await expect(verifyTransaction(mockInv, mockIntentResult)).resolves.not.toThrow();
     expect(mockInv.verify).toHaveBeenCalledWith('0xtx');
+    expect(mockInv.verify.url).toHaveBeenCalledWith('intent-123');
   });
 
   it('should handle verification of non-compliant transaction', async () => {
+    const verifyFn = vi.fn().mockResolvedValue({
+      verified: true,
+      action: 'swap',
+      actor: { type: 'agent', address: '0xAgent', identityId: 'id-123' },
+      timestamp: Math.floor(Date.now() / 1000),
+      txHash: '0xtx',
+      blockNumber: 12345,
+      explorerUrl: 'https://explorer.example.com/tx/0xtx',
+      proof: {
+        proofHash: '0xproof',
+        verifiable: true,
+        signatures: {
+          actor: '0xsig1',
+        },
+      },
+      policyCompliance: {
+        policyId: 'pol-123',
+        allRulesPassed: false,
+      },
+    });
+    verifyFn.url = vi.fn().mockReturnValue('https://explorer.example.com/verify/intent-123');
+
     const mockInv = {
-      verify: vi.fn().mockResolvedValue({
-        verified: true,
-        policyCompliant: false,
-        identityVerified: true,
-      }),
+      verify: verifyFn,
     } as unknown as Invariance;
 
-    const mockIntentResult = { txHash: '0xtx' } as any;
+    const mockIntentResult = { intentId: 'intent-123', txHash: '0xtx' } as any;
 
     await expect(verifyTransaction(mockInv, mockIntentResult)).resolves.not.toThrow();
   });
