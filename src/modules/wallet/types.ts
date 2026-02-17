@@ -36,6 +36,7 @@ export interface FundOptions {
 export interface CreateWalletOptions {
   provider?: WalletProvider | undefined;
   label?: string | undefined;
+  chainType?: string | undefined;
 }
 
 export interface ConnectOptions {

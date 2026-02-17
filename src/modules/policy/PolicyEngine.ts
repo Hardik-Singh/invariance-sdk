@@ -318,14 +318,23 @@ export class PolicyEngine {
 
       const policy = this.mapOnChainPolicy(raw, Array.from(rawRules));
 
-      // Build status with usage stats (placeholder for now)
+      // Fetch usage stats from indexer, gracefully degrade to zeros
+      let usage = { totalEvaluations: 0, violations: 0, spentByRule: {} as Record<string, string> };
+      try {
+        const indexer = this.getIndexer();
+        const data = await indexer.get<{ totalEvaluations: number; violations: number; spentByRule?: Record<string, string> }>(`/policies/${policyId}/evaluations`);
+        usage = {
+          totalEvaluations: data.totalEvaluations,
+          violations: data.violations,
+          spentByRule: data.spentByRule ?? {},
+        };
+      } catch {
+        // Indexer unavailable — use zeros
+      }
+
       const status: PolicyStatus = {
         ...policy,
-        usage: {
-          totalEvaluations: 0,
-          violations: 0,
-          spentByRule: {},
-        },
+        usage,
       };
 
       if (raw.expiresAt > 0n) {

@@ -260,12 +260,11 @@ export class WalletManager {
     }
 
     // Create Privy client and embedded wallet
-    const privy = new (PrivyClient as new (appId: string, appSecret: string) => { createWallet: (opts: Record<string, never>) => Promise<{ address: string }> })(privyConfig.appId, privyConfig.appSecret);
+    const privy = new (PrivyClient as new (appId: string, appSecret: string) => { walletApi: { create(opts: { chainType: string }): Promise<{ address: string; id: string }> } })(privyConfig.appId, privyConfig.appSecret);
 
-    // Create a new user and embedded wallet using Privy's API
-    // Note: This creates a wallet that's controlled by Privy
-    const wallet = await privy.createWallet({
-      // Privy will generate a new wallet address
+    // Create a new embedded wallet using Privy's Wallet API
+    const wallet = await privy.walletApi.create({
+      chainType: _opts?.chainType ?? 'ethereum',
     });
 
     return {
