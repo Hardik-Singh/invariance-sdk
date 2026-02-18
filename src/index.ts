@@ -125,6 +125,18 @@ export { SupabaseLedgerAdapter } from './modules/ledger/adapters/SupabaseLedgerA
 export { InMemoryLedgerAdapter } from './modules/ledger/adapters/InMemoryLedgerAdapter.js';
 
 // ============================================================================
+// Module Managers — Compliance
+// ============================================================================
+
+export { ComplianceManager } from './modules/compliance/ComplianceManager.js';
+
+// ============================================================================
+// Module Managers — Graph Intelligence
+// ============================================================================
+
+export { GraphIntelligence } from './modules/graph/GraphIntelligence.js';
+
+// ============================================================================
 // Module Types — Identity
 // ============================================================================
 
@@ -241,6 +253,28 @@ export type {
   GateActionOptions,
   GateActionResult,
 } from './modules/audit/types.js';
+
+// ============================================================================
+// Module Types — Compliance
+// ============================================================================
+
+export type {
+  ComplianceManagerConfig,
+  ComplianceCheckOptions,
+  ComplianceCheckResult,
+  ErasureRequestOptions,
+} from './modules/compliance/types.js';
+
+// ============================================================================
+// Module Types — Graph Intelligence
+// ============================================================================
+
+export type {
+  GraphIntelligenceConfig,
+  GraphQueryOptions,
+  AnomalyDetectionOptions,
+  CrossChainLinkOptions,
+} from './modules/graph/types.js';
 
 // ============================================================================
 // Module Types — Verify
