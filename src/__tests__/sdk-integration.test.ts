@@ -566,8 +566,8 @@ describe('Suite 1: Client Initialization', () => {
   });
 
   it('version returns package.json version', () => {
-    expect(inv.version).toBe('0.1.0');
-    expect(SDK_VERSION).toBe('0.1.0');
+    expect(inv.version).toBe('0.1.1');
+    expect(SDK_VERSION).toBe('0.1.1');
   });
 });
 
