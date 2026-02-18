@@ -1,4 +1,6 @@
 import type { InvarianceConfig, SpecPolicy, EscrowContract } from '@invariance/common';
+import { ErrorCode } from '@invariance/common';
+import { InvarianceError } from '../errors/InvarianceError.js';
 import { base, baseSepolia } from 'viem/chains';
 import { privateKeyToAccount, generatePrivateKey, mnemonicToAccount } from 'viem/accounts';
 import { ContractFactory } from './ContractFactory.js';
@@ -51,6 +53,8 @@ import type { VerificationResult } from '../modules/verify/types.js';
 import { AuditTrail } from '../modules/audit/AuditTrail.js';
 import type { GateActionOptions, GateActionResult } from '../modules/audit/types.js';
 import { VotingManager } from '../modules/voting/VotingManager.js';
+import { OffchainLedger } from '../modules/ledger/OffchainLedger.js';
+import { SupabaseLedgerAdapter } from '../modules/ledger/adapters/SupabaseLedgerAdapter.js';
 
 declare const __SDK_VERSION__: string;
 
@@ -136,6 +140,7 @@ export class Invariance {
   private _marketplace?: MarketplaceKit;
   private _auditTrail?: AuditTrail;
   private _voting?: VotingManager;
+  private _ledgerOffchain?: OffchainLedger;
 
   // ===========================================================================
   // Static Factory Methods
@@ -555,6 +560,40 @@ export class Invariance {
       );
     }
     return this._auditTrail;
+  }
+
+  /**
+   * Off-chain ledger module backed by a pluggable {@link LedgerAdapter}.
+   *
+   * Same `LedgerEventInput` interface as on-chain, zero gas.
+   * Resolution order: `config.ledgerAdapter` > `config.supabase` > env vars.
+   *
+   * @example
+   * ```typescript
+   * const entry = await inv.ledgerOffchain.log({
+   *   action: 'model-inference',
+   *   actor: { type: 'agent', address: '0xBot' },
+   * });
+   * ```
+   */
+  get ledgerOffchain(): OffchainLedger {
+    if (!this._ledgerOffchain) {
+      let adapter = this.config.ledgerAdapter;
+      if (!adapter) {
+        const url = this.config.supabase?.url ?? process.env['INVARIANCE_SUPABASE_URL'];
+        const key = this.config.supabase?.key ?? process.env['INVARIANCE_SUPABASE_KEY'];
+        if (!url || !key) {
+          throw new InvarianceError(
+            ErrorCode.INVALID_INPUT,
+            'Off-chain ledger requires either config.ledgerAdapter, config.supabase (url + key), or INVARIANCE_SUPABASE_URL / INVARIANCE_SUPABASE_KEY env vars.',
+          );
+        }
+        adapter = new SupabaseLedgerAdapter({ url, key });
+      }
+      const failOpen = this.config.supabase?.failOpen ?? true;
+      this._ledgerOffchain = new OffchainLedger(this.events, this.telemetry, { adapter, failOpen });
+    }
+    return this._ledgerOffchain;
   }
 
   /**

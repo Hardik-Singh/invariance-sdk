@@ -47,7 +47,8 @@
     "@privy-io/server-auth": "^1.0.0",
     "@x402/core": "^2.3.0",
     "@x402/evm": "^2.3.0",
-    "@x402/fetch": "^2.3.0"
+    "@x402/fetch": "^2.3.0",
+    "@supabase/supabase-js": "^2.0.0"
   },
   "peerDependenciesMeta": {
     "@privy-io/server-auth": {
@@ -60,6 +61,9 @@
       "optional": true
     },
     "@x402/fetch": {
+      "optional": true
+    },
+    "@supabase/supabase-js": {
       "optional": true
     }
   },

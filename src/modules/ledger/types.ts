@@ -5,6 +5,7 @@ export type {
   LedgerEventInput,
   LedgerEntry,
   LedgerQueryFilters,
+  OffchainLedgerEntry,
 } from '@invariance/common';
 
 export type { Unsubscribe, ExportData } from '@invariance/common';

@@ -120,6 +120,9 @@ export { GasManager } from './modules/gas/GasManager.js';
 export { MarketplaceKit } from './modules/marketplace/MarketplaceKit.js';
 export { AuditTrail } from './modules/audit/AuditTrail.js';
 export { VotingManager } from './modules/voting/VotingManager.js';
+export { OffchainLedger } from './modules/ledger/OffchainLedger.js';
+export { SupabaseLedgerAdapter } from './modules/ledger/adapters/SupabaseLedgerAdapter.js';
+export { InMemoryLedgerAdapter } from './modules/ledger/adapters/InMemoryLedgerAdapter.js';
 
 // ============================================================================
 // Module Types — Identity
@@ -215,7 +218,7 @@ export type {
   LedgerEntry,
   LedgerQueryFilters,
 } from './modules/ledger/types.js';
-export type { LedgerStreamCallback, AutoBatchConfig } from './modules/ledger/types.js';
+export type { LedgerStreamCallback, AutoBatchConfig, OffchainLedgerEntry } from './modules/ledger/types.js';
 export type {
   AnalyticsTimeframe,
   SuccessRateResult,
@@ -352,6 +355,7 @@ export type {
   ActorType,
   ChainConfig,
   ContractAddresses,
+  LedgerAdapter,
 } from '@invariance/common';
 export type { EIP1193Provider, InvarianceSigner } from '@invariance/common';
 export type { PaymentOptions, RequirePaymentConfig, PaymentGatedAuthorization } from '@invariance/common';
