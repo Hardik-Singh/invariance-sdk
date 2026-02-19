@@ -53,6 +53,7 @@ import { X402Manager } from '../modules/x402/X402Manager.js';
 import { ERC8004Manager } from '../modules/erc8004/ERC8004Manager.js';
 import { InvarianceBridge } from '../modules/erc8004/InvarianceBridge.js';
 import { MarketplaceKit } from '../modules/marketplace/MarketplaceKit.js';
+import { GraphIntelligence } from '../modules/graph/GraphIntelligence.js';
 import type { VerificationResult } from '../modules/verify/types.js';
 import { AuditTrail } from '../modules/audit/AuditTrail.js';
 import type { GateActionOptions, GateActionResult } from '../modules/audit/types.js';
@@ -143,6 +144,7 @@ export class Invariance {
   private _erc8004?: ERC8004Manager;
   private _erc8004Bridge?: InvarianceBridge;
   private _marketplace?: MarketplaceKit;
+  private _graph?: GraphIntelligence;
   private _auditTrail?: AuditTrail;
   private _voting?: VotingManager;
   private _ledgerOffchain?: OffchainLedger;
@@ -557,6 +559,21 @@ export class Invariance {
       this._marketplace = new MarketplaceKit(this.contracts, this.events, this.telemetry);
     }
     return this._marketplace;
+  }
+
+  /**
+   * Graph intelligence module.
+   *
+   * Subgraph queries, anomaly detection, export, and cross-chain linking.
+   */
+  get graph(): GraphIntelligence {
+    if (!this._graph) {
+      this._graph = new GraphIntelligence({
+        apiUrl: this.contracts.getApiBaseUrl(),
+        apiKey: this.contracts.getApiKey() ?? '',
+      });
+    }
+    return this._graph;
   }
 
   /**

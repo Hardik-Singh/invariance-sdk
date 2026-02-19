@@ -254,6 +254,18 @@ Pay-per-action execution and agent-to-agent payments via x402.
 | `estimateCost(action)` | Estimate cost for an action |
 | `configure(settings)` | Configure payment settings |
 
+### `inv.graph` -- GraphIntelligence
+
+Risk graph subqueries, anomaly detection, export, and cross-chain linking.
+
+| Method | Description |
+|--------|-------------|
+| `getSubgraph({ address, depth })` | Query neighborhood graph snapshot |
+| `detectAnomalies({ address, types? })` | Run graph anomaly detectors |
+| `exportGraph(address, depth, format)` | Export `gexf` / `graphml` / `json` |
+| `linkCrossChain({ entityId?, addresses })` | Link addresses into one entity |
+| `getLinkedEntity(address)` | Resolve linked cross-chain entity |
+
 ### `inv.erc8004` -- ERC8004Manager
 
 Standalone ERC-8004 (Trustless Agents) manager for on-chain agent identity, reputation, and validation.

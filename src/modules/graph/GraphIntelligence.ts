@@ -5,6 +5,9 @@ import type {
   CrossChainLinkOptions,
 } from './types.js';
 import type { GraphSnapshot, GraphAnomaly, CrossChainEntity, GraphExportFormat } from '@invariance/common';
+import { ErrorCode } from '@invariance/common';
+import { InvarianceError } from '../../errors/InvarianceError.js';
+import { IndexerClient } from '../../utils/indexer-client.js';
 
 /**
  * GraphIntelligence provides access to the risk intelligence graph,
@@ -19,10 +22,14 @@ import type { GraphSnapshot, GraphAnomaly, CrossChainEntity, GraphExportFormat }
  * ```
  */
 export class GraphIntelligence {
-  private config: GraphIntelligenceConfig;
+  private readonly config: GraphIntelligenceConfig;
+  private readonly client: IndexerClient;
+  private readonly hasV1Prefix: boolean;
 
   constructor(config: GraphIntelligenceConfig) {
     this.config = config;
+    this.client = new IndexerClient(config.apiUrl, config.apiKey);
+    this.hasV1Prefix = config.apiUrl.replace(/\/$/, '').endsWith('/v1');
   }
 
   /**
@@ -31,10 +38,10 @@ export class GraphIntelligence {
    * @returns Graph snapshot with nodes and edges
    */
   async getSubgraph(options: GraphQueryOptions): Promise<GraphSnapshot> {
-    // TODO: GET /graph/:address?depth=N using this.config.apiUrl
-    void this.config;
-    void options;
-    throw new Error('GraphIntelligence.getSubgraph not implemented');
+    return this.client.get<GraphSnapshot>(`/graph/${options.address}`, {
+      depth: options.depth ?? 2,
+      includeRiskScores: options.includeRiskScores ? 1 : undefined,
+    });
   }
 
   /**
@@ -43,9 +50,9 @@ export class GraphIntelligence {
    * @returns Array of detected anomalies
    */
   async detectAnomalies(options: AnomalyDetectionOptions): Promise<GraphAnomaly[]> {
-    // TODO: GET /graph/:address/anomalies
-    void options;
-    throw new Error('GraphIntelligence.detectAnomalies not implemented');
+    return this.client.get<GraphAnomaly[]>(`/graph/${options.address}/anomalies`, {
+      types: options.types?.join(','),
+    });
   }
 
   /**
@@ -56,11 +63,29 @@ export class GraphIntelligence {
    * @returns Exported graph as string
    */
   async exportGraph(address: string, depth: number, format: GraphExportFormat): Promise<string> {
-    // TODO: GET /graph/export?address=X&depth=N&format=F
-    void address;
-    void depth;
-    void format;
-    throw new Error('GraphIntelligence.exportGraph not implemented');
+    const url = new URL(this.buildUrl('/graph/export'));
+    url.searchParams.set('address', address);
+    url.searchParams.set('depth', String(depth));
+    url.searchParams.set('format', format);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new InvarianceError(
+        ErrorCode.NETWORK_ERROR,
+        `Graph export failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    if (format === 'json') {
+      const payload = await response.json() as { data?: unknown };
+      return JSON.stringify(payload.data ?? payload);
+    }
+
+    return response.text();
   }
 
   /**
@@ -69,9 +94,10 @@ export class GraphIntelligence {
    * @returns The linked cross-chain entity
    */
   async linkCrossChain(options: CrossChainLinkOptions): Promise<CrossChainEntity> {
-    // TODO: POST /graph/cross-chain/link
-    void options;
-    throw new Error('GraphIntelligence.linkCrossChain not implemented');
+    return this.client.post<CrossChainEntity>('/graph/cross-chain/link', {
+      entityId: options.entityId,
+      addresses: options.addresses,
+    });
   }
 
   /**
@@ -80,8 +106,37 @@ export class GraphIntelligence {
    * @returns The cross-chain entity, or null
    */
   async getLinkedEntity(address: string): Promise<CrossChainEntity | null> {
-    // TODO: GET /graph/cross-chain/:address
-    void address;
-    throw new Error('GraphIntelligence.getLinkedEntity not implemented');
+    const response = await fetch(this.buildUrl(`/graph/cross-chain/${address}`), {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new InvarianceError(
+        ErrorCode.NETWORK_ERROR,
+        `Cross-chain lookup failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const payload = await response.json() as { data?: CrossChainEntity };
+    return payload.data ?? null;
+  }
+
+  private buildHeaders(): Record<string, string> {
+    return {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${this.config.apiKey}`,
+      'x-api-key': this.config.apiKey,
+    };
+  }
+
+  private buildUrl(path: string): string {
+    const base = this.config.apiUrl.replace(/\/$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    if (this.hasV1Prefix) {
+      return `${base}${normalizedPath.startsWith('/v1') ? normalizedPath.slice(3) : normalizedPath}`;
+    }
+    return `${base}${normalizedPath.startsWith('/v1') ? normalizedPath : `/v1${normalizedPath}`}`;
   }
 }
