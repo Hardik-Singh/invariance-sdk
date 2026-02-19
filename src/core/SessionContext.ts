@@ -10,11 +10,12 @@
  * ```
  */
 import type { Invariance } from './InvarianceClient.js';
-import type { ActorReference, IntentRequestOptions, IntentResult, LedgerEntry, SpecPolicy } from '@invariance/common';
+import type { ActorReference, IntentRequestOptions, IntentResult, LedgerEntry, SpecPolicy, AuditLogRecord } from '@invariance/common';
 import type { SessionOptions } from './convenience-types.js';
 import type { IntentHistoryFilters } from '../modules/intent/types.js';
 import type { LedgerQueryFilters } from '../modules/ledger/types.js';
 import type { PolicyListFilters } from '../modules/policy/types.js';
+import type { OffchainLogOptions } from './convenience-types.js';
 
 /**
  * A session scoped to a specific actor.
@@ -70,5 +71,31 @@ export class SessionContext {
    */
   async myPolicies(filters?: Omit<PolicyListFilters, 'identityId'>): Promise<SpecPolicy[]> {
     return this.inv.policy.list({ ...filters, identityId: this.actor.address });
+  }
+
+  /**
+   * Write an off-chain log entry bound to the session actor.
+   *
+   * @param action - Action identifier
+   * @param options - Additional off-chain log options
+   * @returns Off-chain log write result
+   */
+  async logOffchain(
+    action: string,
+    options?: Omit<OffchainLogOptions, 'action' | 'actor'>,
+  ): Promise<import('./convenience-types.js').OffchainLogResult> {
+    return this.inv.logOffchain(action, { ...options, actor: this.actor });
+  }
+
+  /**
+   * Query off-chain logs for the session actor.
+   *
+   * @param filters - Optional additional query filters
+   * @returns Matching off-chain logs and total count
+   */
+  async myOffchainLogs(
+    filters?: Omit<import('./convenience-types.js').OffchainLogQuery, 'actor'>,
+  ): Promise<{ data: AuditLogRecord[]; total: number }> {
+    return this.inv.queryOffchainLogs({ ...filters, actor: this.actor.address });
   }
 }

@@ -71,6 +71,10 @@ export type {
   SessionOptions,
   PipelineStep,
   PipelineResult,
+  OffchainLogOptions,
+  OffchainLogResult,
+  OffchainLogQuery,
+  OffchainLogMode,
 } from './core/convenience-types.js';
 
 // ============================================================================

@@ -136,6 +136,10 @@ function createMockInvariance() {
 
   // Build the mock using a plain object that mimics Invariance
   const inv = {
+    resolveOffchainActor: vi.fn((actor) => actor ?? { type: 'human', address: '0xWallet' }),
+    wallet: {
+      getAddress: vi.fn().mockReturnValue('0xWallet'),
+    },
     identity: {
       register: vi.fn().mockResolvedValue(mockIdentity),
       get: vi.fn().mockResolvedValue(mockIdentity),
@@ -151,6 +155,28 @@ function createMockInvariance() {
       log: vi.fn().mockResolvedValue(mockLedgerEntry),
       query: vi.fn().mockResolvedValue([mockLedgerEntry]),
       export: vi.fn().mockResolvedValue(mockExport),
+    },
+    ledgerOffchain: {
+      log: vi.fn().mockResolvedValue({
+        entryId: 'off-123',
+        action: 'agent.swap',
+        actor: { type: 'agent', address: '0xAgent' },
+        category: 'custom',
+        severity: 'info',
+        metadata: {},
+        timestamp: 1000,
+        createdAt: new Date(1000).toISOString(),
+      }),
+    },
+    auditTrail: {
+      log: vi.fn().mockResolvedValue({
+        id: 'audit-123',
+        action: 'agent.swap',
+        actor: { type: 'agent', address: '0xAgent' },
+        status: 'success',
+        createdAt: new Date(1000).toISOString(),
+      }),
+      query: vi.fn().mockResolvedValue({ data: [], total: 0 }),
     },
     escrow: {
       create: vi.fn().mockResolvedValue(mockEscrow),
@@ -475,6 +501,46 @@ describe('Convenience Methods', () => {
       expect(inv.intent.request).toHaveBeenCalledOnce();
       expect(result.policy).toBe(mockPolicy);
       expect(result.intent).toBe(mockIntentResult);
+    });
+  });
+
+  describe('off-chain logging', () => {
+    it('logs to audit store by default', async () => {
+      const { inv } = createMockInvariance();
+      const result = await proto.logOffchain.call(inv, 'agent.swap', {
+        actor: { type: 'agent', address: '0xAgent' },
+        metadata: { amount: '100' },
+      });
+
+      expect(inv.auditTrail.log).toHaveBeenCalledOnce();
+      expect(inv.ledgerOffchain.log).not.toHaveBeenCalled();
+      expect(result.mode).toBe('audit');
+      expect(result.audit?.id).toBe('audit-123');
+    });
+
+    it('can dual-write to audit and off-chain ledger', async () => {
+      const { inv } = createMockInvariance();
+      const result = await proto.logOffchain.call(inv, {
+        action: 'agent.swap',
+        actor: { type: 'agent', address: '0xAgent' },
+        mode: 'both',
+        status: 'failure',
+        error: { message: 'reverted' },
+      });
+
+      expect(inv.auditTrail.log).toHaveBeenCalledOnce();
+      expect(inv.ledgerOffchain.log).toHaveBeenCalledOnce();
+      expect(result.audit?.id).toBe('audit-123');
+      expect(result.ledger?.entryId).toBe('off-123');
+    });
+
+    it('queries off-chain logs via audit trail', async () => {
+      const { inv } = createMockInvariance();
+      inv.auditTrail.query.mockResolvedValueOnce({ data: [{ id: 'a1' }], total: 1 });
+      const result = await proto.queryOffchainLogs.call(inv, { actor: '0xAgent', action: 'agent.swap' });
+
+      expect(inv.auditTrail.query).toHaveBeenCalledOnce();
+      expect(result.total).toBe(1);
     });
   });
 });

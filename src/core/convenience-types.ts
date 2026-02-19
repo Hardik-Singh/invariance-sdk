@@ -23,6 +23,11 @@ import type {
   CompletionResult,
   SubmitReviewOptions,
   ReputationScore,
+  AuditLogRecord,
+  OffchainLedgerEntry,
+  AuditLogInput,
+  AuditQueryFilters,
+  AuditVisibility,
 } from '@invariance/common';
 
 // ============================================================================
@@ -304,4 +309,52 @@ export interface PipelineResult {
   success: boolean;
   steps: PipelineStep[];
   context: Record<string, unknown>;
+}
+
+// ============================================================================
+// 14. off-chain logging helpers
+// ============================================================================
+
+/** Where to write convenience off-chain logs */
+export type OffchainLogMode = 'audit' | 'ledger' | 'both';
+
+/** Options for {@link Invariance.logOffchain}. */
+export interface OffchainLogOptions {
+  /** Action identifier (e.g. "agent.swap") */
+  action: string;
+  /** Actor reference. If omitted, attempts to infer from connected wallet. */
+  actor?: ActorReference;
+  /** Audit lifecycle status (defaults to "success") */
+  status?: AuditLogInput['status'];
+  /** Optional category for grouping logs */
+  category?: string;
+  /** Visibility for audit store */
+  visibility?: AuditVisibility;
+  /** Structured metadata payload */
+  metadata?: Record<string, unknown>;
+  /** Optional error payload (useful for failure logs) */
+  error?: AuditLogInput['error'];
+  /** Correlation id across systems; auto-generated when omitted */
+  requestId?: string;
+  /** Epoch milliseconds; defaults to Date.now() */
+  timestamp?: number;
+  /** Target sink(s) (defaults to "audit") */
+  mode?: OffchainLogMode;
+  /** Ledger severity (defaults from status) */
+  severity?: OffchainLedgerEntry['severity'];
+}
+
+/** Result returned by {@link Invariance.logOffchain}. */
+export interface OffchainLogResult {
+  requestId: string;
+  timestamp: number;
+  mode: OffchainLogMode;
+  audit?: AuditLogRecord;
+  ledger?: OffchainLedgerEntry;
+}
+
+/** Query filters for convenience off-chain log lookups. */
+export interface OffchainLogQuery extends AuditQueryFilters {
+  limit?: number;
+  offset?: number;
 }

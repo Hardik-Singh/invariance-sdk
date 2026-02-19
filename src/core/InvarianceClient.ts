@@ -26,6 +26,10 @@ import type {
   BatchOptions,
   BatchResult,
   SessionOptions,
+  OffchainLogOptions,
+  OffchainLogResult,
+  OffchainLogQuery,
+  OffchainLogMode,
 } from './convenience-types.js';
 import { BatchExecutor } from './BatchExecutor.js';
 import { SessionContext } from './SessionContext.js';
@@ -55,6 +59,7 @@ import type { GateActionOptions, GateActionResult } from '../modules/audit/types
 import { VotingManager } from '../modules/voting/VotingManager.js';
 import { OffchainLedger } from '../modules/ledger/OffchainLedger.js';
 import { SupabaseLedgerAdapter } from '../modules/ledger/adapters/SupabaseLedgerAdapter.js';
+import type { ActorReference, AuditQueryFilters } from '@invariance/common';
 
 declare const __SDK_VERSION__: string;
 
@@ -261,6 +266,18 @@ export class Invariance {
       this._walletInitPromise.catch(() => {
         // Error already logged in the constructor .catch() handler
       });
+    }
+  }
+
+  private resolveOffchainActor(actor?: ActorReference): ActorReference {
+    if (actor) return actor;
+    try {
+      return { type: 'human', address: this.wallet.getAddress() };
+    } catch {
+      throw new InvarianceError(
+        ErrorCode.INVALID_INPUT,
+        'Off-chain logging requires an actor or a connected wallet signer.',
+      );
     }
   }
 
@@ -767,6 +784,94 @@ export class Invariance {
    */
   async gateAction<T>(opts: GateActionOptions, executor: () => Promise<T>): Promise<GateActionResult<T>> {
     return this.auditTrail.gate(opts, executor);
+  }
+
+  /**
+   * Write an off-chain log entry with one call.
+   *
+   * Defaults to the audit store for lowest setup friction, with optional
+   * dual-write into the off-chain ledger.
+   *
+   * @example
+   * ```typescript
+   * await inv.logOffchain('agent.swap', {
+   *   metadata: { from: 'USDC', to: 'ETH', amount: '100' },
+   * });
+   * ```
+   */
+  async logOffchain(action: string, options?: Omit<OffchainLogOptions, 'action'>): Promise<OffchainLogResult>;
+  async logOffchain(options: OffchainLogOptions): Promise<OffchainLogResult>;
+  async logOffchain(
+    actionOrOptions: string | OffchainLogOptions,
+    options?: Omit<OffchainLogOptions, 'action'>,
+  ): Promise<OffchainLogResult> {
+    const input: OffchainLogOptions = typeof actionOrOptions === 'string'
+      ? { action: actionOrOptions, ...(options ?? {}) }
+      : actionOrOptions;
+
+    const actor = this.resolveOffchainActor(input.actor);
+    const status = input.status ?? 'success';
+    const mode: OffchainLogMode = input.mode ?? 'audit';
+    const requestId = input.requestId ?? `off_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const timestamp = input.timestamp ?? Date.now();
+
+    let audit: import('@invariance/common').AuditLogRecord | undefined;
+    if (mode === 'audit' || mode === 'both') {
+      const auditInput: import('@invariance/common').AuditLogInput = {
+        action: input.action,
+        actor,
+        status,
+        requestId,
+        timestamp,
+      };
+      if (input.category !== undefined) auditInput.category = input.category;
+      if (input.visibility !== undefined) auditInput.visibility = input.visibility;
+      if (input.metadata !== undefined) auditInput.metadata = input.metadata;
+      if (input.error !== undefined) auditInput.error = input.error;
+      audit = await this.auditTrail.log(auditInput);
+    }
+
+    let ledger: import('@invariance/common').OffchainLedgerEntry | undefined;
+    if (mode === 'ledger' || mode === 'both') {
+      const severity = input.severity ?? (status === 'failure' ? 'error' : 'info');
+      ledger = await this.ledgerOffchain.log({
+        action: input.action,
+        actor,
+        category: (input.category as 'execution' | 'payment' | 'policy' | 'attestation' | 'custom' | undefined) ?? 'custom',
+        severity,
+        metadata: {
+          ...(input.metadata ?? {}),
+          requestId,
+          status,
+          ...(input.error ? { error: input.error.message, errorCode: input.error.code } : {}),
+        },
+      });
+    }
+
+    const result: OffchainLogResult = { requestId, timestamp, mode };
+    if (audit !== undefined) result.audit = audit;
+    if (ledger !== undefined) result.ledger = ledger;
+    return result;
+  }
+
+  /**
+   * Query off-chain logs from the audit store.
+   *
+   * @param filters - Off-chain query filters
+   * @returns Matching off-chain audit logs
+   */
+  async queryOffchainLogs(filters: OffchainLogQuery = {}): Promise<{ data: import('@invariance/common').AuditLogRecord[]; total: number }> {
+    const query: AuditQueryFilters = {};
+    if (filters.actor !== undefined) query.actor = filters.actor;
+    if (filters.action !== undefined) query.action = filters.action;
+    if (filters.status !== undefined) query.status = filters.status;
+    if (filters.category !== undefined) query.category = filters.category;
+    if (filters.visibility !== undefined) query.visibility = filters.visibility;
+    if (filters.from !== undefined) query.from = filters.from;
+    if (filters.to !== undefined) query.to = filters.to;
+    if (filters.page !== undefined) query.page = filters.page;
+    if (filters.pageSize !== undefined) query.pageSize = filters.pageSize;
+    return this.auditTrail.query(query);
   }
 
   /**

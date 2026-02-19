@@ -164,6 +164,40 @@ Immutable on-chain logging with dual signatures (actor + platform).
 | `stream(filters, callback)` | Real-time event stream |
 | `export(filters)` | Export as JSON/CSV |
 
+### `inv.logOffchain(...)` and `inv.queryOffchainLogs(...)`
+
+Dead-simple off-chain logging with correlation IDs and optional dual-write.
+
+```typescript
+// 1-line off-chain audit log (defaults to mode: "audit")
+const log = await inv.logOffchain('agent.swap', {
+  actor: { type: 'agent', address: '0xAgent' },
+  metadata: { from: 'USDC', to: 'ETH', amount: '100' },
+});
+
+console.log(log.requestId); // correlation id across systems
+
+// Query recent logs
+const recent = await inv.queryOffchainLogs({
+  actor: '0xAgent',
+  action: 'agent.swap',
+  page: 1,
+  pageSize: 20,
+});
+```
+
+Session-scoped usage (no repeated actor):
+
+```typescript
+const session = inv.session({ actor: { type: 'agent', address: '0xAgent' } });
+
+await session.logOffchain('agent.swap', {
+  metadata: { pair: 'USDC/ETH' },
+});
+
+const mine = await session.myOffchainLogs({ pageSize: 50 });
+```
+
 ### `inv.verify` -- Verifier
 
 Cryptographic verification and public explorer URLs. Callable directly as `inv.verify(txHash)` and via sub-methods.
