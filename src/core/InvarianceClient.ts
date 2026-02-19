@@ -60,6 +60,7 @@ import type { GateActionOptions, GateActionResult } from '../modules/audit/types
 import { VotingManager } from '../modules/voting/VotingManager.js';
 import { OffchainLedger } from '../modules/ledger/OffchainLedger.js';
 import { SupabaseLedgerAdapter } from '../modules/ledger/adapters/SupabaseLedgerAdapter.js';
+import { KeyManager } from '../modules/keys/KeyManager.js';
 import type { ActorReference, AuditQueryFilters } from '@invariance/common';
 
 declare const __SDK_VERSION__: string;
@@ -148,6 +149,7 @@ export class Invariance {
   private _auditTrail?: AuditTrail;
   private _voting?: VotingManager;
   private _ledgerOffchain?: OffchainLedger;
+  private _keys?: KeyManager;
 
   // ===========================================================================
   // Static Factory Methods
@@ -574,6 +576,35 @@ export class Invariance {
       });
     }
     return this._graph;
+  }
+
+  /**
+   * Server-side key management via Supabase Vault.
+   *
+   * Requires `accessToken` (Supabase session token) in config.
+   * Private keys never leave the server.
+   *
+   * @example
+   * ```typescript
+   * const { publicKey, keyId } = await inv.keys.generateKeyPair();
+   * const { signature } = await inv.keys.signAction(messageBytes);
+   * ```
+   */
+  get keys(): KeyManager {
+    if (!this._keys) {
+      const accessToken = this.config.accessToken;
+      if (!accessToken) {
+        throw new InvarianceError(
+          ErrorCode.INVALID_INPUT,
+          'Key management requires config.accessToken (Supabase session token).',
+        );
+      }
+      this._keys = new KeyManager({
+        apiUrl: this.contracts.getApiBaseUrl(),
+        accessToken,
+      });
+    }
+    return this._keys;
   }
 
   /**

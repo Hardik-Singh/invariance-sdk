@@ -26,6 +26,16 @@ export interface AnomalyDetectionOptions {
   types?: string[];
 }
 
+/** Options for querying persisted anomaly history. */
+export interface AnomalyHistoryOptions {
+  /** Address to check */
+  address: string;
+  /** Optional anomaly type filter */
+  type?: string;
+  /** Max rows to return (default 50, max 200) */
+  limit?: number;
+}
+
 /** Options for cross-chain linking. */
 export interface CrossChainLinkOptions {
   /** Entity ID (or new if not provided) */

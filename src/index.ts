@@ -141,6 +141,13 @@ export { ComplianceManager } from './modules/compliance/ComplianceManager.js';
 export { GraphIntelligence } from './modules/graph/GraphIntelligence.js';
 
 // ============================================================================
+// Module Managers — Key Management
+// ============================================================================
+
+export { KeyManager } from './modules/keys/KeyManager.js';
+export type { KeyManagerConfig, KeyPairResult, SignResult } from './modules/keys/types.js';
+
+// ============================================================================
 // Module Types — Identity
 // ============================================================================
 
