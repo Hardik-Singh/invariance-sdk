@@ -108,8 +108,25 @@ export class WalletManager {
       const invSigner = signer as InvarianceSigner;
       const addr = await invSigner.getAddress();
       this.address = addr as `0x${string}`;
+      // Create a custom viem account that delegates signing to the InvarianceSigner
+      const customAccount: Account = {
+        address: this.address,
+        type: 'local',
+        source: 'custom',
+        publicKey: '0x', // Not used for signing; InvarianceSigner handles it
+        async signMessage({ message }: { message: string | { raw: `0x${string}` } }) {
+          const msg = typeof message === 'string' ? message : message.raw;
+          return invSigner.signMessage(typeof msg === 'string' ? msg : msg) as Promise<`0x${string}`>;
+        },
+        async signTransaction() {
+          throw new InvarianceError(ErrorCode.WALLET_NOT_CONNECTED, 'InvarianceSigner does not support signTransaction. Use signMessage or signTypedData.');
+        },
+        async signTypedData(typedData: unknown) {
+          return invSigner.signTypedData(typedData) as Promise<`0x${string}`>;
+        },
+      } as unknown as Account;
       this.walletClient = createWalletClient({
-        account: this.address,
+        account: customAccount,
         chain,
         transport: http(rpcUrl),
       });
@@ -312,6 +329,9 @@ export class WalletManager {
     } catch {
       throw new InvarianceError(ErrorCode.INVALID_INPUT, `Invalid recipient address (failed EIP-55 checksum): ${address}`);
     }
+    if (address === '0x0000000000000000000000000000000000000000') {
+      throw new InvarianceError(ErrorCode.INVALID_INPUT, 'Cannot fund the zero address');
+    }
 
     const token = opts.token ?? 'USDC';
     const recipient = address as `0x${string}`;
@@ -392,7 +412,7 @@ export class WalletManager {
     }
 
     return {
-      usdc: usdcBalance ?? '0.000000',
+      usdc: usdcBalance,
       eth: formatEther(ethBalance),
       address: addr,
     };

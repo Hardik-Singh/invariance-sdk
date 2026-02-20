@@ -135,6 +135,10 @@ export { InMemoryLedgerAdapter } from './modules/ledger/adapters/InMemoryLedgerA
 // Module Managers — Compliance
 // ============================================================================
 
+/**
+ * @alpha Not yet implemented. All methods throw "not implemented".
+ * Exported for type-level use only — do not instantiate in production.
+ */
 export { ComplianceManager } from './modules/compliance/ComplianceManager.js';
 
 // ============================================================================

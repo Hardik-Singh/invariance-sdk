@@ -244,6 +244,7 @@ describe('contract-helpers', () => {
       metadataHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
       proofHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
       severity: 0,
+      nonce: 0n,
     };
 
     it('throws when wallet has no account', async () => {
@@ -265,8 +266,8 @@ describe('contract-helpers', () => {
       expect(signTypedData).toHaveBeenCalledWith(
         expect.objectContaining({
           domain,
-          primaryType: 'LogEntry',
-          message: expect.objectContaining({ action: 'test-action' }),
+          primaryType: 'CompactLogInput',
+          message: expect.objectContaining({ action: 'test-action', nonce: 0n }),
         }),
       );
     });
@@ -281,6 +282,7 @@ describe('contract-helpers', () => {
       metadataHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
       proofHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
       severity: 0,
+      nonce: 0n,
     };
 
     it('throws when no API key is provided', async () => {

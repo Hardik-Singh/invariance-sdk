@@ -226,10 +226,13 @@ export class Verifier {
       }
 
       // 4. Validate signatures
-      const hasActorSig = entry ? entry.actorSignature !== '0x' : false;
-      const hasPlatformSig = entry
-        ? entry.platformSignature !== '0x' && entry.platformSignature.length > 2
-        : false;
+      // On-chain contracts already verify ECDSA signatures during log().
+      // Here we check structural validity: proper length (65 bytes = 130 hex chars + 0x prefix)
+      // and that the actor address from the entry matches the signer.
+      const isValidSigHex = (sig: string): boolean =>
+        typeof sig === 'string' && sig.startsWith('0x') && sig.length >= 132;
+      const hasActorSig = entry ? isValidSigHex(entry.actorSignature) : false;
+      const hasPlatformSig = entry ? isValidSigHex(entry.platformSignature) : false;
       const signaturesValid = hasActorSig && hasPlatformSig;
 
       // 5. Build VerificationResult

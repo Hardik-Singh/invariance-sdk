@@ -23,7 +23,8 @@ export interface WalletInfo {
 }
 
 export interface BalanceInfo {
-  usdc: string;
+  /** USDC balance as a decimal string, or null if the contract is unreachable */
+  usdc: string | null;
   eth: string;
   address: string;
 }

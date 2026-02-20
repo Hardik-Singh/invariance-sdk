@@ -30,6 +30,7 @@ interface CompactLogInput {
   metadataHash: `0x${string}`;
   proofHash: `0x${string}`;
   severity: number;
+  nonce: bigint;
 }
 
 /** Buffered entry awaiting merkle anchor flush */
@@ -155,6 +156,13 @@ export class MerkleAnchorLedger {
     const metadata = event.metadata ?? {};
     const metadataHash = hashMetadata(metadata);
 
+    // Fetch on-chain nonce for the actor
+    const compactLedger = this.contracts.getContract('compactLedger');
+    const noncesFn = compactLedger.read['nonces'];
+    const nonce = noncesFn
+      ? await noncesFn([event.actor.address as `0x${string}`]) as bigint
+      : 0n;
+
     const compactInput: CompactLogInput = {
       actorIdentityId: identityId,
       actorAddress: event.actor.address,
@@ -163,6 +171,7 @@ export class MerkleAnchorLedger {
       metadataHash,
       proofHash: metadataHash,
       severity: mapSeverity(event.severity ?? 'info'),
+      nonce,
     };
 
     const domain = this.contracts.getCompactLedgerDomain();

@@ -361,8 +361,8 @@ function createMockContractFactory() {
           category: 'custom',
           metadataHash: ZERO_BYTES32,
           proofHash: ZERO_BYTES32,
-          actorSignature: '0xactorsig1234',
-          platformSignature: '0xplatformsig5678',
+          actorSignature: '0x' + 'ab'.repeat(65),
+          platformSignature: '0x' + 'cd'.repeat(65),
           severity: 0,
           blockNumber: 12345n,
           timestamp: BigInt(Math.floor(Date.now() / 1000)),
@@ -376,8 +376,8 @@ function createMockContractFactory() {
           category: 'custom',
           metadataHash: ZERO_BYTES32,
           proofHash: ZERO_BYTES32,
-          actorSignature: '0xactorsig1234',
-          platformSignature: '0xplatformsig5678',
+          actorSignature: '0x' + 'ab'.repeat(65),
+          platformSignature: '0x' + 'cd'.repeat(65),
           severity: 0,
           blockNumber: 12345n,
           timestamp: BigInt(Math.floor(Date.now() / 1000)),
@@ -566,8 +566,8 @@ describe('Suite 1: Client Initialization', () => {
   });
 
   it('version returns package.json version', () => {
-    expect(inv.version).toBe('0.1.1');
-    expect(SDK_VERSION).toBe('0.1.1');
+    expect(inv.version).toBe('0.1.2');
+    expect(SDK_VERSION).toBe('0.1.2');
   });
 });
 

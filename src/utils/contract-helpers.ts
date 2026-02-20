@@ -640,7 +640,7 @@ export interface CompactLedgerDomain {
 
 /** EIP-712 type definition for CompactLedger LogEntry */
 const COMPACT_LEDGER_TYPES = {
-  LogEntry: [
+  CompactLogInput: [
     { name: 'actorIdentityId', type: 'bytes32' },
     { name: 'actorAddress', type: 'address' },
     { name: 'action', type: 'string' },
@@ -648,6 +648,7 @@ const COMPACT_LEDGER_TYPES = {
     { name: 'metadataHash', type: 'bytes32' },
     { name: 'proofHash', type: 'bytes32' },
     { name: 'severity', type: 'uint8' },
+    { name: 'nonce', type: 'uint256' },
   ],
 } as const;
 
@@ -671,6 +672,7 @@ export async function generateActorSignatureEIP712(
     metadataHash: `0x${string}`;
     proofHash: `0x${string}`;
     severity: number;
+    nonce: bigint;
   },
   domain: CompactLedgerDomain,
   walletClient: WalletClient,
@@ -686,7 +688,7 @@ export async function generateActorSignatureEIP712(
     account,
     domain,
     types: COMPACT_LEDGER_TYPES,
-    primaryType: 'LogEntry',
+    primaryType: 'CompactLogInput',
     message: {
       actorIdentityId: input.actorIdentityId,
       actorAddress: input.actorAddress as `0x${string}`,
@@ -695,6 +697,7 @@ export async function generateActorSignatureEIP712(
       metadataHash: input.metadataHash,
       proofHash: input.proofHash,
       severity: input.severity,
+      nonce: input.nonce,
     },
   });
 }
@@ -720,6 +723,7 @@ export async function generatePlatformAttestationEIP712(
     metadataHash: `0x${string}`;
     proofHash: `0x${string}`;
     severity: number;
+    nonce: bigint;
   },
   apiKey: string | undefined,
   apiBaseUrl?: string,
@@ -750,6 +754,7 @@ export async function generatePlatformAttestationEIP712(
         metadataHash: input.metadataHash,
         proofHash: input.proofHash,
         severity: input.severity,
+        nonce: input.nonce.toString(),
       },
     }),
   });
@@ -838,8 +843,10 @@ export async function generateActorSignature(
   const message = JSON.stringify({ action: event.action, metadata: event.metadata ?? {} });
   const account = walletClient.account;
   if (!account) {
-    // Fallback: deterministic commitment hash when no account is available
-    return keccak256(toHex(message));
+    throw new InvarianceError(
+      ErrorCode.WALLET_NOT_CONNECTED,
+      'Actor signature requires a connected wallet account. A keccak fallback would undermine non-repudiation.',
+    );
   }
   return walletClient.signMessage({ account, message });
 }

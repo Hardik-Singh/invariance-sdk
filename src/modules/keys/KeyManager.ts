@@ -41,7 +41,7 @@ export class KeyManager {
 
   /** Sign a message using the server-side key. */
   async signAction(message: Uint8Array): Promise<SignResult> {
-    const hex = Buffer.from(message).toString('hex');
+    const hex = Array.from(message, (b) => b.toString(16).padStart(2, '0')).join('');
     return this.post<SignResult>('/keys/sign', { message: hex });
   }
 

@@ -77,6 +77,13 @@ export class AtomicVerifier {
       const metadata = event.metadata ?? {};
       const metadataHash = hashMetadata(metadata);
 
+      // Fetch on-chain nonce for the actor
+      const compactLedger = this.contracts.getContract('compactLedger');
+      const noncesFn = compactLedger.read['nonces'];
+      const nonce = noncesFn
+        ? await noncesFn([event.actor.address as `0x${string}`]) as bigint
+        : 0n;
+
       // Build compact input struct
       const compactInput = {
         actorIdentityId: identityId,
@@ -84,8 +91,10 @@ export class AtomicVerifier {
         action: event.action,
         category: event.category ?? 'custom',
         metadataHash,
+        /** @todo V2: generate a distinct proof hash (e.g. hash of code version + previous state) */
         proofHash: metadataHash,
         severity: mapSeverity(event.severity ?? 'info'),
+        nonce,
       };
 
       // Generate EIP-712 dual signatures

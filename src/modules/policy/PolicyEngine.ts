@@ -483,13 +483,17 @@ export class PolicyEngine {
             }
           }
         } catch (err) {
-          // Only swallow contract-read errors (e.g. function not found).
-          // Rethrow network/RPC errors that indicate a real problem.
+          // Only swallow contract-read errors where the function doesn't exist on the ABI.
+          // Rethrow everything else — silent swallowing bypasses require-payment rules.
           const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes('network') || errMsg.includes('timeout') || errMsg.includes('ECONNREFUSED') || errMsg.includes('fetch failed')) {
+          const isContractReadError =
+            errMsg.includes('is not a function') ||
+            errMsg.includes('could not coalesce') ||
+            errMsg.includes('ABI function not found');
+          if (!isContractReadError) {
             throw new InvarianceError(
               ErrorCode.NETWORK_ERROR,
-              `Failed to read policy rules for payment verification: ${errMsg}`,
+              `Failed to evaluate require-payment rule: ${errMsg}`,
             );
           }
           this.telemetry.track('policy.evaluate.ruleReadSkipped', { error: errMsg });

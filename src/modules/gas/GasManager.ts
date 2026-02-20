@@ -2,6 +2,8 @@ import type { ContractFactory } from '../../core/ContractFactory.js';
 import type { InvarianceEventEmitter } from '../../core/EventEmitter.js';
 import type { Telemetry } from '../../core/Telemetry.js';
 import { formatEther } from 'viem';
+import { ErrorCode } from '@invariance/common';
+import { InvarianceError } from '../../errors/InvarianceError.js';
 import type { GasEstimate, GasBalance, EstimateGasOptions } from './types.js';
 
 /** Gas limits by action type (conservative estimates) */
@@ -31,8 +33,8 @@ const GAS_LIMITS: Record<string, number> = {
 /** Default gas limit for unknown actions */
 const DEFAULT_GAS_LIMIT = 200_000;
 
-/** Approximate ETH/USD rate for USDC conversion baseline */
-const ETH_USD_BASELINE = 3000;
+/** Default ETH/USD rate for USDC conversion baseline */
+const DEFAULT_ETH_USD_BASELINE = 3000;
 
 /**
  * Gas abstraction for Invariance operations.
@@ -53,14 +55,17 @@ const ETH_USD_BASELINE = 3000;
 export class GasManager {
   private readonly contracts: ContractFactory;
   private readonly telemetry: Telemetry;
+  private readonly ethUsdBaseline: number;
 
   constructor(
     contracts: ContractFactory,
     _events: InvarianceEventEmitter,
     telemetry: Telemetry,
+    opts?: { ethUsdBaseline?: number },
   ) {
     this.contracts = contracts;
     this.telemetry = telemetry;
+    this.ethUsdBaseline = opts?.ethUsdBaseline ?? DEFAULT_ETH_USD_BASELINE;
   }
 
   /**
@@ -89,7 +94,7 @@ export class GasManager {
 
     // Convert to USDC at baseline rate
     const ethCostNum = parseFloat(ethCost);
-    const usdcCost = (ethCostNum * ETH_USD_BASELINE).toFixed(6);
+    const usdcCost = (ethCostNum * this.ethUsdBaseline).toFixed(6);
 
     return {
       ethCost,
@@ -130,7 +135,7 @@ export class GasManager {
     const apiKey = process.env['PAYMASTER_API_KEY'];
 
     if (!paymasterUrl || !apiKey) {
-      throw new Error('PAYMASTER_URL and PAYMASTER_API_KEY environment variables are required for gas sponsorship');
+      throw new InvarianceError(ErrorCode.INVALID_INPUT, 'PAYMASTER_URL and PAYMASTER_API_KEY environment variables are required for gas sponsorship');
     }
 
     const response = await fetch(paymasterUrl, {
@@ -143,12 +148,12 @@ export class GasManager {
         jsonrpc: '2.0',
         id: 1,
         method: 'pm_sponsorUserOperation',
-        params: [userOp, { chainId: '0x2105' }], // Base mainnet
+        params: [userOp, { chainId: `0x${this.contracts.getChainId().toString(16)}` }],
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Paymaster request failed: ${response.status}`);
+      throw new InvarianceError(ErrorCode.NETWORK_ERROR, `Paymaster request failed: ${response.status}`);
     }
 
     const json = await response.json() as {
@@ -162,11 +167,11 @@ export class GasManager {
     };
 
     if (json.error) {
-      throw new Error(`Paymaster error: ${json.error.message}`);
+      throw new InvarianceError(ErrorCode.NETWORK_ERROR, `Paymaster error: ${json.error.message}`);
     }
 
     if (!json.result) {
-      throw new Error('Paymaster returned empty result');
+      throw new InvarianceError(ErrorCode.NETWORK_ERROR, 'Paymaster returned empty result');
     }
 
     return json.result;

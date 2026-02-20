@@ -279,7 +279,8 @@ export class ContractFactory {
     }
     const abi = ABI_MAP[name];
     const addressKey = ADDRESS_KEY_MAP[name];
-    const address = this.addresses[addressKey] as `0x${string}`;
+    // Route through getAddress() for zero-address validation
+    const address = this.getAddress(addressKey) as `0x${string}`;
 
     // The actual viem contract instance has fully typed read/write methods
     // but we use a simplified return type to avoid TS serialization limits
