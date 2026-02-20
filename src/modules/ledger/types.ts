@@ -27,6 +27,14 @@ export interface AutoBatchConfig {
   enabled?: boolean;
 }
 
+/** Configuration for merkle-anchor batched ledger */
+export interface MerkleAnchorConfig extends AutoBatchConfig {
+  /** Maximum entries per batch (default: 100) */
+  maxBatchSize?: number;
+  /** Maximum wait time in ms before flushing (default: 10000) */
+  maxWaitMs?: number;
+}
+
 // ============================================================================
 // Analytics Types
 // ============================================================================

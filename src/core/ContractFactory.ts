@@ -24,9 +24,10 @@ import {
   InvarianceCompactLedgerAbi,
   InvarianceAtomicVerifierAbi,
   InvarianceVotingAbi,
+  InvarianceMerkleAnchorAbi,
 } from '../contracts/abis/index.js';
 
-type ContractName = 'identity' | 'policy' | 'ledger' | 'intent' | 'escrow' | 'review' | 'registry' | 'hire' | 'mockUsdc' | 'compactLedger' | 'atomicVerifier' | 'voting';
+type ContractName = 'identity' | 'policy' | 'ledger' | 'intent' | 'escrow' | 'review' | 'registry' | 'hire' | 'mockUsdc' | 'compactLedger' | 'atomicVerifier' | 'voting' | 'merkleAnchor';
 
 const ABI_MAP = {
   identity: InvarianceIdentityAbi,
@@ -41,6 +42,7 @@ const ABI_MAP = {
   compactLedger: InvarianceCompactLedgerAbi,
   atomicVerifier: InvarianceAtomicVerifierAbi,
   voting: InvarianceVotingAbi,
+  merkleAnchor: InvarianceMerkleAnchorAbi,
 } as const;
 
 /** Zero address constant for guard checks */
@@ -59,6 +61,7 @@ const ADDRESS_KEY_MAP: Record<ContractName, keyof ContractAddresses> = {
   compactLedger: 'compactLedger',
   atomicVerifier: 'atomicVerifier',
   voting: 'voting',
+  merkleAnchor: 'merkleAnchor',
 };
 
 /**

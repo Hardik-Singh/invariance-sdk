@@ -10,3 +10,4 @@ export { MockUSDCAbi } from './MockUSDC.js';
 export { InvarianceCompactLedgerAbi } from './InvarianceCompactLedger.js';
 export { InvarianceAtomicVerifierAbi } from './InvarianceAtomicVerifier.js';
 export { InvarianceVotingAbi } from './InvarianceVoting.js';
+export { InvarianceMerkleAnchorAbi } from './InvarianceMerkleAnchor.js';

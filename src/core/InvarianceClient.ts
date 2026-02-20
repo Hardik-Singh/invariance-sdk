@@ -44,7 +44,8 @@ import { EscrowManager } from '../modules/escrow/EscrowManager.js';
 import { EventLedger } from '../modules/ledger/EventLedger.js';
 import { EventLedgerCompact } from '../modules/ledger/EventLedgerCompact.js';
 import { AutoBatchedEventLedgerCompact } from '../modules/ledger/AutoBatchedEventLedgerCompact.js';
-import type { AutoBatchConfig } from '../modules/ledger/types.js';
+import type { AutoBatchConfig, MerkleAnchorConfig } from '../modules/ledger/types.js';
+import { MerkleAnchorLedger } from '../modules/ledger/MerkleAnchorLedger.js';
 import { Verifier } from '../modules/verify/Verifier.js';
 import { AtomicVerifier } from '../modules/verify/AtomicVerifier.js';
 import { ReputationEngine } from '../modules/reputation/ReputationEngine.js';
@@ -719,6 +720,28 @@ export class Invariance {
   ledgerCompactBatched(config?: AutoBatchConfig): AutoBatchedEventLedgerCompact {
     this._autoInit();
     return new AutoBatchedEventLedgerCompact(this.contracts, this.events, this.telemetry, config);
+  }
+
+  /**
+   * Create a merkle-anchor batched ledger that buffers `log()` calls and
+   * flushes them by anchoring a single merkle root on-chain.
+   *
+   * ~95% gas savings vs CompactLedger for large batches. Individual entries
+   * are verifiable via merkle proofs.
+   *
+   * @param config - Batch configuration (maxBatchSize defaults to 100, maxWaitMs to 10000)
+   * @returns Merkle-anchor batched ledger wrapper
+   *
+   * @example
+   * ```typescript
+   * const merkle = inv.ledgerMerkle({ maxBatchSize: 100 });
+   * await Promise.all(events.map(e => merkle.log(e)));
+   * await merkle.destroy();
+   * ```
+   */
+  ledgerMerkle(config?: MerkleAnchorConfig): MerkleAnchorLedger {
+    this._autoInit();
+    return new MerkleAnchorLedger(this.contracts, this.events, this.telemetry, config);
   }
 
   // ===========================================================================

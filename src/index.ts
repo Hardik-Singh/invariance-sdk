@@ -117,6 +117,9 @@ export { EscrowManager } from './modules/escrow/EscrowManager.js';
 export { EventLedger } from './modules/ledger/EventLedger.js';
 export { EventLedgerCompact } from './modules/ledger/EventLedgerCompact.js';
 export { AutoBatchedEventLedgerCompact } from './modules/ledger/AutoBatchedEventLedgerCompact.js';
+export { MerkleAnchorLedger } from './modules/ledger/MerkleAnchorLedger.js';
+export { buildAnchorTree, verifyAnchorLeafOffChain } from './modules/ledger/merkle-anchor-builder.js';
+export type { AnchorLeafValue, AnchorTreeResult } from './modules/ledger/merkle-anchor-builder.js';
 export { Verifier } from './modules/verify/Verifier.js';
 export { AtomicVerifier } from './modules/verify/AtomicVerifier.js';
 export { ReputationEngine } from './modules/reputation/ReputationEngine.js';
@@ -248,7 +251,7 @@ export type {
   LedgerEntry,
   LedgerQueryFilters,
 } from './modules/ledger/types.js';
-export type { LedgerStreamCallback, AutoBatchConfig, OffchainLedgerEntry } from './modules/ledger/types.js';
+export type { LedgerStreamCallback, AutoBatchConfig, MerkleAnchorConfig, OffchainLedgerEntry } from './modules/ledger/types.js';
 export type {
   AnalyticsTimeframe,
   SuccessRateResult,
