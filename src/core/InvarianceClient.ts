@@ -61,6 +61,7 @@ import { VotingManager } from '../modules/voting/VotingManager.js';
 import { OffchainLedger } from '../modules/ledger/OffchainLedger.js';
 import { SupabaseLedgerAdapter } from '../modules/ledger/adapters/SupabaseLedgerAdapter.js';
 import { KeyManager } from '../modules/keys/KeyManager.js';
+import { TimestampManager } from '../modules/timestamp/TimestampManager.js';
 import type { ActorReference, AuditQueryFilters } from '@invariance/common';
 
 declare const __SDK_VERSION__: string;
@@ -150,6 +151,7 @@ export class Invariance {
   private _voting?: VotingManager;
   private _ledgerOffchain?: OffchainLedger;
   private _keys?: KeyManager;
+  private _timestamp?: TimestampManager;
 
   // ===========================================================================
   // Static Factory Methods
@@ -605,6 +607,29 @@ export class Invariance {
       });
     }
     return this._keys;
+  }
+
+  /**
+   * OpenTimestamps module for lightweight Bitcoin-anchored proofs.
+   *
+   * Zero cost, decentralized, cryptographic timestamping.
+   * Requires the `opentimestamps` npm package to be installed.
+   *
+   * @example
+   * ```typescript
+   * const proof = await inv.timestamp.stamp('abcdef1234...');
+   * const upgraded = await inv.timestamp.upgrade(proof);
+   * const result = await inv.timestamp.verify(hash, proof);
+   * ```
+   */
+  get timestamp(): TimestampManager {
+    if (!this._timestamp) {
+      this._timestamp = new TimestampManager(
+        this.config.timestamp ?? {},
+        this.telemetry,
+      );
+    }
+    return this._timestamp;
   }
 
   /**

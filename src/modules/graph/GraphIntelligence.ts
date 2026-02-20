@@ -2,6 +2,7 @@ import type {
   GraphIntelligenceConfig,
   GraphQueryOptions,
   AnomalyDetectionOptions,
+  AnomalyHistoryOptions,
   CrossChainLinkOptions,
 } from './types.js';
 import type { GraphSnapshot, GraphAnomaly, CrossChainEntity, GraphExportFormat } from '@invariance/common';
@@ -52,6 +53,18 @@ export class GraphIntelligence {
   async detectAnomalies(options: AnomalyDetectionOptions): Promise<GraphAnomaly[]> {
     return this.client.get<GraphAnomaly[]>(`/graph/${options.address}/anomalies`, {
       types: options.types?.join(','),
+    });
+  }
+
+  /**
+   * Read persisted anomaly history for an address.
+   * @param options - History query options
+   * @returns Array of historical anomalies
+   */
+  async getAnomalyHistory(options: AnomalyHistoryOptions): Promise<GraphAnomaly[]> {
+    return this.client.get<GraphAnomaly[]>(`/graph/${options.address}/anomalies/history`, {
+      type: options.type,
+      limit: options.limit,
     });
   }
 

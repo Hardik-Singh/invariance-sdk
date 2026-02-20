@@ -262,6 +262,7 @@ Risk graph subqueries, anomaly detection, export, and cross-chain linking.
 |--------|-------------|
 | `getSubgraph({ address, depth })` | Query neighborhood graph snapshot |
 | `detectAnomalies({ address, types? })` | Run graph anomaly detectors |
+| `getAnomalyHistory({ address, type?, limit? })` | Query persisted anomaly history |
 | `exportGraph(address, depth, format)` | Export `gexf` / `graphml` / `json` |
 | `linkCrossChain({ entityId?, addresses })` | Link addresses into one entity |
 | `getLinkedEntity(address)` | Resolve linked cross-chain entity |

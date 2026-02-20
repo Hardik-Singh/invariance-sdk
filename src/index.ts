@@ -148,6 +148,13 @@ export { KeyManager } from './modules/keys/KeyManager.js';
 export type { KeyManagerConfig, KeyPairResult, SignResult } from './modules/keys/types.js';
 
 // ============================================================================
+// Module Managers — Timestamp (OpenTimestamps)
+// ============================================================================
+
+export { TimestampManager } from './modules/timestamp/TimestampManager.js';
+export type { TimestampProof, TimestampVerification, TimestampConfig } from './modules/timestamp/types.js';
+
+// ============================================================================
 // Module Types — Identity
 // ============================================================================
 
