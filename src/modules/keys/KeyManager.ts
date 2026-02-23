@@ -104,11 +104,15 @@ export class KeyManager {
   }
 
   private async post<T>(path: string, body?: unknown): Promise<T> {
-    const response = await fetch(this.buildUrl(path), {
+    const requestInit: RequestInit = {
       method: 'POST',
       headers: this.buildHeaders(),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    };
+    if (body !== undefined) {
+      requestInit.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(this.buildUrl(path), requestInit);
 
     if (!response.ok) {
       const resBody = await response.json().catch(() => ({})) as { error?: { message?: string } };
